@@ -54,7 +54,6 @@ async def combo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match1 = TODAY_BEST_PICKS[0]
     match2 = TODAY_BEST_PICKS[1]
     
-    # Υπολογισμός συνολικής απόδοσης
     try:
         total_odds = round(float(match1['odds']) * float(match2['odds']), 2)
     except Exception:
@@ -163,4 +162,60 @@ async def auto_scan_and_notify(app):
                     'away': match['away'],
                     'comp': match['comp'],
                     'time': time_str,
-                    
+                    'market': market_choice,
+                    'odds': odds_choice
+                }
+                TODAY_BEST_PICKS.insert(0, pick_data)
+                if len(TODAY_BEST_PICKS) > 10:
+                    TODAY_BEST_PICKS.pop()
+                
+                alert_text = (
+                    f"🎯 **{match['home']} vs {match['away']}**\n"
+                    f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
+                    f"🟢 {market_choice}: **{odds_choice}**"
+                )
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("📊 Στατιστικά", callback_data=f"stats_{match['home']}-{match['away']}"),
+                        InlineKeyboardButton("📲 Stoiximan", url="https://www.stoiximan.gr")
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                for chat_id in list(SUBSCRIBED_CHATS):
+                    try:
+                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown", reply_markup=reply_markup)
+                    except Exception as e:
+                        print(f"Error sending to {chat_id}: {e}")
+                
+                sent_matches.add(match['id'])
+                await asyncio.sleep(2)
+                
+        except Exception as e:
+            print(f"Error scanning matches: {e}")
+            
+        await asyncio.sleep(180)
+
+async def post_init(application):
+    application.create_task(auto_scan_and_notify(application))
+
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    
+    TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAHAxgelBq__DPW-m2NM3a3YEuMS7SMOMDw")
+    
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+    app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("best", best_command))
+    app.add_handler(CommandHandler("combo", combo_command))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    
+    print("Chris Bet is live and running...")
+    app.run_polling()
