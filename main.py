@@ -1,6 +1,6 @@
 import os
 import threading
-import time
+import asyncio
 from datetime import datetime, timezone, timedelta
 import random
 import requests
@@ -26,16 +26,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
         "🤖 **Chris Bet — Sorted by Time (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε επιτυχώς!"
+        "Το bot ενεργοποιήθηκε και σαρώνει κανονικά!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
-def background_scanner(app):
+async def auto_scan_and_notify(app):
     API_TOKEN = "47725a0c893146ac825f2c23f2963b92"
     competitions = ["PL", "CL", "SA", "PD", "BL1", "FL1", "DED", "PPL", "CLI", "EC", "WC"]
     headers = {"X-Auth-Token": API_TOKEN}
-    sent_matches = set()
     
+    sent_matches = set()
     markets_pool = [
         ("Over 0.5 Goals", "1.08"),
         ("Over 1.5 Goals", "1.35"),
@@ -44,7 +44,8 @@ def background_scanner(app):
         ("1Χ2: Άσος (1)", "1.55")
     ]
     
-    import asyncio
+    # Περιμένουμε λίγο να ξεκινήσει πλήρως το bot
+    await asyncio.sleep(5)
     
     while True:
         try:
@@ -82,8 +83,9 @@ def background_scanner(app):
                         'comp': data.get('competition', {}).get('name', comp)
                     })
                 
-                time.sleep(1)
+                await asyncio.sleep(1)
             
+            # Χρονολογική ταξινόμηση
             all_today_matches.sort(key=lambda x: x['dt_greece'])
             
             for match in all_today_matches:
@@ -102,33 +104,29 @@ def background_scanner(app):
                 
                 for chat_id in list(SUBSCRIBED_CHATS):
                     try:
-                        asyncio.run_coroutine_threadsafe(
-                            app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown"),
-                            app.loop
-                        )
+                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
                     except Exception as e:
-                        print(f"Error sending: {e}")
+                        print(f"Error sending to {chat_id}: {e}")
                 
                 sent_matches.add(match['id'])
-                time.sleep(2)
+                await asyncio.sleep(2)
                 
         except Exception as e:
-            print(f"Error in scanner: {e}")
+            print(f"Error scanning matches: {e}")
             
-        time.sleep(180)
+        await asyncio.sleep(180)
+
+async def post_init(application):
+    application.create_task(auto_scan_and_notify(application))
 
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
     
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAHAxgelBq__DPW-m2NM3a3YEuMS7SMOMDw")
     
-    # Χρήση Application αντί για Updater για πλήρη συμβατότητα με όλες τις εκδόσεις Python
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
     
     app.add_handler(CommandHandler("start", start))
     
-    scanner_thread = threading.Thread(target=background_scanner, args=(app,), daemon=True)
-    scanner_thread.start()
-    
-    print("Chris Bet is running...")
+    print("Chris Bet is live and running...")
     app.run_polling()
