@@ -25,7 +25,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
         "🤖 **Chris Bet — High Probability (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε με μινιμαλιστικές ειδοποιήσεις!"
+        "Το bot ενεργοποιήθηκε και είναι έτοιμο!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -94,13 +94,13 @@ async def auto_scan_and_notify(app):
                     continue
                     
                 time_str = match['dt_greece'].strftime("%H:%M")
-                _, odds_choice = smart_market_analysis(match['home'], match['away'], match['comp'])
+                market_choice, odds_choice = smart_market_analysis(match['home'], match['away'], match['comp'])
                 
-                # Εδώ διαμορφώνεται η ειδοποίηση ακριβώς όπως το ζήτησες:
+                # Εδώ εμφανίζεται καθαρά η αγορά μαζί με το πράσινο κυκλάκι και την απόδοση σε bold:
                 alert_text = (
                     f"🎯 **{match['home']} vs {match['away']}**\n"
                     f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
-                    f"🟢 **{odds_choice}**"
+                    f"🟢 {market_choice}: **{odds_choice}**"
                 )
                 
                 for chat_id in list(SUBSCRIBED_CHATS):
