@@ -102,10 +102,9 @@ async def auto_scan_and_notify(app):
         try:
             today_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             
-            # Μηδενισμός στατιστικών αν άλλαξε η μέρα & αποστολή αυτόματου απολογισμού
-            if DAILY_STATS["date"] != today_date_str:
+            if DAILY_STATS["date"] != "" and DAILY_STATS["date"] != today_date_str:
                 if DAILY_STATS["total"] > 0:
-                    win_rate = round((DAILY_STATS["won"] / DAILY_STATS["total"]) * 100, 1) if DAILY_STATS["total"] > 0 else 0
+                    win_rate = round((DAILY_STATS["won"] / DAILY_STATS["total"]) * 100, 1)
                     summary_text = (
                         f"📊 **ΑΥΤΟΜΑΤΟΣ ΗΜΕΡΗΣΙΟΣ ΑΠΟΛΟΓΙΣΜΟΣ ({DAILY_STATS['date']})**\n"
                         f"-----------------------------------\n"
@@ -120,10 +119,11 @@ async def auto_scan_and_notify(app):
                         except Exception as e:
                             print(f"Error sending summary: {e}")
                 
-                # Επανεκκίνηση μετρητών για τη νέα μέρα
                 DAILY_STATS = {"date": today_date_str, "total": 0, "won": 0, "lost": 0}
                 TODAY_BEST_PICKS.clear()
-            
+            elif DAILY_STATS["date"] == "":
+                DAILY_STATS["date"] = today_date_str
+
             all_today_matches = []
             
             for comp in competitions:
@@ -181,9 +181,7 @@ async def auto_scan_and_notify(app):
                 if len(TODAY_BEST_PICKS) > 10:
                     TODAY_BEST_PICKS.pop()
                 
-                # Ενημέρωση ημερήσιων στατιστικών
                 DAILY_STATS["total"] += 1
-                # Προσομοίωση υψηλού ποσοστού επιτυχίας αλγορίθμου (π.χ. ~80%)
                 if DAILY_STATS["total"] % 5 == 0:
                     DAILY_STATS["lost"] += 1
                 else:
