@@ -13,7 +13,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet Bot is running custom clean layout 93%+ scanner!")
+        self.wfile.write(b"Chris Bet bot is running clean 93%+ scanner!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -26,8 +26,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet Bot — 93%+ Clean Layout (24/7)!**\n\n"
-        "Το bot είναι έτοιμο με τη νέα καθαρή μορφή μηνυμάτων!"
+        "🤖 **Chris Bet — 93%+ Clean Layout (24/7)!**\n\n"
+        "Το bot είναι έτοιμο και σαρώνει συνεχώς τους σημερινούς αγώνες!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -38,7 +38,6 @@ async def auto_scan_and_notify(app):
     
     sent_matches = set()
     
-    # Αγορές με ακριβώς τα σημεία που ζήτησες (GG, Over 1.5, Under 0.5 κ.λπ.)
     markets_pool = [
         ("Over 0.5 Goals", "1.08", "96.5%"),
         ("Over 1.5 Goals", "1.35", "93.5%"),
@@ -79,7 +78,6 @@ async def auto_scan_and_notify(app):
                     
                     market_choice, odds_choice, perc_choice = random.choice(markets_pool)
                     
-                    # Καθαρή διάταξη, έντονες ομάδες, χωρίς τη λέξη "Πρόταση" ή "Επιτυχία", με πράσινο στυλ
                     alert_text = (
                         f"🎯 **{home_team} vs {away_team}**\n"
                         f"🏆 {competition_name} | ⏰ {time_str} UTC\n\n"
@@ -117,5 +115,5 @@ if __name__ == '__main__':
     
     threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
     
-    print("Chris Bet Bot is live with Custom Clean Layout...")
+    print("Chris Bet is live...")
     app.run_polling()
