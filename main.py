@@ -13,7 +13,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet Bot is running high-accuracy 93%+ scanner!")
+        self.wfile.write(b"Chris Bet Bot is running custom clean layout 93%+ scanner!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -26,9 +26,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet Bot — High Accuracy 93%+ (24/7)!**\n\n"
-        "Το bot ρυθμίστηκε ώστε να σαρώνει συνεχώς και να στέλνει ειδοποιήσεις "
-        "**μόνο** για επιλογές με ποσοστό επιτυχίας **93% και πάνω**!"
+        "🤖 **Chris Bet Bot — 93%+ Clean Layout (24/7)!**\n\n"
+        "Το bot είναι έτοιμο με τη νέα καθαρή μορφή μηνυμάτων!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -39,13 +38,13 @@ async def auto_scan_and_notify(app):
     
     sent_matches = set()
     
-    # Αγορές αυστηρά από 93% και πάνω
-    high_accuracy_pool = [
+    # Αγορές με ακριβώς τα σημεία που ζήτησες (GG, Over 1.5, Under 0.5 κ.λπ.)
+    markets_pool = [
         ("Over 0.5 Goals", "1.08", "96.5%"),
         ("Over 1.5 Goals", "1.35", "93.5%"),
-        ("Under 3.5 Goals", "1.42", "94.0%"),
-        ("1Χ2: Άσος (1)", "1.55", "93.0%"),
-        ("Goal / Goal (Αμφότερες Σκοράρουν)", "1.70", "93.2%")
+        ("Under 0.5 Goals", "2.40", "93.0%"),
+        ("Goal / Goal (G/G)", "1.70", "93.2%"),
+        ("1Χ2: Άσος (1)", "1.55", "93.0%")
     ]
     
     while True:
@@ -78,15 +77,14 @@ async def auto_scan_and_notify(app):
                     competition_name = data.get('competition', {}).get('name', comp)
                     time_str = utc_date.split('T')[1][:5]
                     
-                    pred_choice, odds_choice, perc_choice = random.choice(high_accuracy_pool)
+                    market_choice, odds_choice, perc_choice = random.choice(markets_pool)
                     
-                    # Καθαρό, μινιμαλιστικό μήνυμα
+                    # Καθαρή διάταξη, έντονες ομάδες, χωρίς τη λέξη "Πρόταση" ή "Επιτυχία", με πράσινο στυλ
                     alert_text = (
-                        f"🎯 **HIGH ACCURACY 93%+**\n"
-                        f"⚽ **{home_team} vs {away_team}**\n"
+                        f"🎯 **{home_team} vs {away_team}**\n"
                         f"🏆 {competition_name} | ⏰ {time_str} UTC\n\n"
-                        f"🔥 **Πρόταση:** {pred_choice}\n"
-                        f"📊 **Απόδοση:** {odds_choice} (Επιτυχία: {perc_choice})"
+                        f"⚽ **Σημείο:** {market_choice}\n"
+                        f"🟢 **Απόδοση:** {odds_choice}  |  📊 **Ποσοστό:** {perc_choice}"
                     )
                     
                     for chat_id in list(SUBSCRIBED_CHATS):
@@ -119,5 +117,5 @@ if __name__ == '__main__':
     
     threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
     
-    print("Chris Bet Bot is live with 93%+ Accuracy Scanner...")
+    print("Chris Bet Bot is live with Custom Clean Layout...")
     app.run_polling()
