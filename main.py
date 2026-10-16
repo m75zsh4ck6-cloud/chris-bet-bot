@@ -1,6 +1,6 @@
 import os
 import threading
-import asyncio
+import time
 from datetime import datetime, timezone, timedelta
 import random
 import requests
@@ -26,16 +26,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
         "🤖 **Chris Bet — Sorted by Time (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε και σαρώνει συνεχώς τους αγώνες!"
+        "Το bot ενεργοποιήθηκε επιτυχώς!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
-async def auto_scan_and_notify(app):
+def background_scanner(app):
     API_TOKEN = "47725a0c893146ac825f2c23f2963b92"
     competitions = ["PL", "CL", "SA", "PD", "BL1", "FL1", "DED", "PPL", "CLI", "EC", "WC"]
     headers = {"X-Auth-Token": API_TOKEN}
-    
     sent_matches = set()
+    
     markets_pool = [
         ("Over 0.5 Goals", "1.08"),
         ("Over 1.5 Goals", "1.35"),
@@ -43,6 +43,8 @@ async def auto_scan_and_notify(app):
         ("Goal / Goal (G/G)", "1.70"),
         ("1Χ2: Άσος (1)", "1.55")
     ]
+    
+    import asyncio
     
     while True:
         try:
@@ -80,7 +82,7 @@ async def auto_scan_and_notify(app):
                         'comp': data.get('competition', {}).get('name', comp)
                     })
                 
-                await asyncio.sleep(1)
+                time.sleep(1)
             
             all_today_matches.sort(key=lambda x: x['dt_greece'])
             
@@ -100,22 +102,20 @@ async def auto_scan_and_notify(app):
                 
                 for chat_id in list(SUBSCRIBED_CHATS):
                     try:
-                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
+                        asyncio.run_coroutine_threadsafe(
+                            app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown"),
+                            app.loop
+                        )
                     except Exception as e:
-                        print(f"Error sending to {chat_id}: {e}")
+                        print(f"Error sending: {e}")
                 
                 sent_matches.add(match['id'])
-                await asyncio.sleep(2)
+                time.sleep(2)
                 
         except Exception as e:
-            print(f"Error scanning matches: {e}")
+            print(f"Error in scanner: {e}")
             
-        await asyncio.sleep(180)
-
-def start_background_loop(app):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(auto_scan_and_notify(app))
+        time.sleep(180)
 
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
@@ -125,7 +125,8 @@ if __name__ == '__main__':
     
     app.add_handler(CommandHandler("start", start))
     
-    threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
+    scanner_thread = threading.Thread(target=background_scanner, args=(app,), daemon=True)
+    scanner_thread.start()
     
-    print("Chris Bet is live...")
+    print("Chris Bet is running...")
     app.run_polling()
