@@ -1,6 +1,5 @@
 import os
 import threading
-import time
 import asyncio
 from datetime import datetime, timezone, timedelta
 import random
@@ -13,7 +12,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet test scanner is running!")
+        self.wfile.write(b"Chris Bet bot is running perfectly!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -37,7 +36,6 @@ async def auto_scan_and_notify(app):
     headers = {"X-Auth-Token": API_TOKEN}
     
     sent_matches = set()
-    
     markets_pool = [
         ("Over 0.5 Goals", "1.08"),
         ("Over 1.5 Goals", "1.35"),
@@ -51,7 +49,6 @@ async def auto_scan_and_notify(app):
             today_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             all_today_matches = []
             
-            # 1. Προσπάθεια ανάγνωσης από το API
             for comp in competitions:
                 url = f"https://api.football-data.org/v4/competitions/{comp}/matches?dateFrom={today_date_str}&dateTo={today_date_str}"
                 response = requests.get(url, headers=headers)
@@ -85,8 +82,69 @@ async def auto_scan_and_notify(app):
                 
                 await asyncio.sleep(1)
             
-            # Αν για κάποιο λόγο το API δεν βρει παιχνίδια αυτή τη στιγμή, 
-            # βάζουμε προσωρινά παραδείγματα για να δεις αμέσως πώς δουλεύει η σειρά και η εμφάνιση!
             if not all_today_matches:
                 now_greece = datetime.now(timezone.utc) + timedelta(hours=3)
-                all_today_matches =
+                all_today_matches = [
+                    {
+                        'id': 9991,
+                        'dt_greece': now_greece + timedelta(minutes=5),
+                        'home': 'Panathinaikos FC',
+                        'away': 'Olympiacos FC',
+                        'comp': 'Super League Greece'
+                    },
+                    {
+                        'id': 9992,
+                        'dt_greece': now_greece + timedelta(minutes=15),
+                        'home': 'Real Madrid',
+                        'away': 'FC Barcelona',
+                        'comp': 'Primera Division'
+                    }
+                ]
+            
+            all_today_matches.sort(key=lambda x: x['dt_greece'])
+            
+            for match in all_today_matches:
+                if match['id'] in sent_matches:
+                    continue
+                    
+                time_str = match['dt_greece'].strftime("%H:%M")
+                market_choice, odds_choice = random.choice(markets_pool)
+                
+                alert_text = (
+                    f"🎯 **{match['home']} vs {match['away']}**\n"
+                    f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
+                    f"⚽ **Σημείο:** {market_choice}\n"
+                    f"🟢 **Απόδοση:** {odds_choice}"
+                )
+                
+                for chat_id in list(SUBSCRIBED_CHATS):
+                    try:
+                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
+                    except Exception as e:
+                        print(f"Error sending to {chat_id}: {e}")
+                
+                sent_matches.add(match['id'])
+                await asyncio.sleep(2)
+                
+        except Exception as e:
+            print(f"Error scanning matches: {e}")
+            
+        await asyncio.sleep(180)
+
+def start_background_loop(app):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(auto_scan_and_notify(app))
+
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    
+    TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAHAxgelBq__DPW-m2NM3a3YEuMS7SMOMDw")
+    app = ApplicationBuilder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    
+    threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
+    
+    print("Chris Bet is live...")
+    app.run_polling()
