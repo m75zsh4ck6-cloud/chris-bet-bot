@@ -24,22 +24,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet — High Probability (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε και είναι έτοιμο!"
+        "🤖 **Chris Bet — Pro Strategy (24/7)!**\n\n"
+        "Το bot ενεργοποιήθηκε με επαγγελματική στρατηγική αποδόσεων!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
 def smart_market_analysis(home, away, comp):
-    safe_markets = [
-        ("Over 1.5 Goals", "1.32"),
-        ("Διπλή Ευκαιρία: 1Χ", "1.25"),
-        ("Διπλή Ευκαιρία: Χ2", "1.28"),
-        ("Goal / Goal (G/G)", "1.72"),
-        ("Under 3.5 Goals", "1.22"),
-        ("Over 0.5 Goals (Ημίχρονο)", "1.38")
+    # Επαγγελματική λίστα αγορών με αποδόσεις αξίας (1.55 - 2.15)
+    value_markets = [
+        ("1Χ2: Άσος (1)", "2.12"),
+        ("Goal / Goal (G/G)", "1.75"),
+        ("Over 2.5 Goals", "1.85"),
+        ("1Χ2: Διπλό (2)", "2.05"),
+        ("Under 2.5 Goals", "1.70"),
+        ("Goal / Goal & Over 2.5", "2.10"),
+        ("1Χ2: Ισοπαλία (Χ)", "3.20"),
+        ("Διπλή Ευκαιρία: 1Χ & Over 1.5", "1.65")
     ]
-    index = abs(hash(home + away)) % len(safe_markets)
-    return safe_markets[index]
+    index = abs(hash(home + away)) % len(value_markets)
+    return value_markets[index]
 
 async def auto_scan_and_notify(app):
     API_TOKEN = "47725a0c893146ac825f2c23f2963b92"
@@ -96,7 +99,6 @@ async def auto_scan_and_notify(app):
                 time_str = match['dt_greece'].strftime("%H:%M")
                 market_choice, odds_choice = smart_market_analysis(match['home'], match['away'], match['comp'])
                 
-                # Εδώ εμφανίζεται καθαρά η αγορά μαζί με το πράσινο κυκλάκι και την απόδοση σε bold:
                 alert_text = (
                     f"🎯 **{match['home']} vs {match['away']}**\n"
                     f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
