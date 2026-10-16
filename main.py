@@ -19,18 +19,34 @@ def run_web_server():
     server.serve_forever()
 
 SUBSCRIBED_CHATS = set()
+TODAY_BEST_PICKS = []
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet — Realistic Pro Algorithm (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε με έμφαση στη Διπλή Ευκαιρία όπου χρειάζεται!"
+        "🤖 **Chris Bet — Best Picks Edition (24/7)!**\n\n"
+        "Το bot ενεργοποιήθηκε! Χρησιμοποίησε την εντολή /best για να δεις τα κορυφαία σημεία της ημέρας."
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
+async def best_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not TODAY_BEST_PICKS:
+        await update.message.reply_text("⏳ Ακόμη δεν υπάρχουν αποθηκευμένα κορυφαία σημεία για σήμερα. Περίμενε το επόμενο σάρωμα!", parse_mode="Markdown")
+        return
+    
+    response_text = "🔥 **TOP VALUE PICKS ΣΗΜΕΡΑ:**\n\n"
+    for pick in TODAY_BEST_PICKS[:3]: # Δείχνει τα 3 κορυφαία
+        response_text += (
+            f"🎯 **{pick['home']} vs {pick['away']}**\n"
+            f"🏆 {pick['comp']} | ⏰ {pick['time']} Ελλάδος\n"
+            f"🟢 {pick['market']}: **{pick['odds']}**\n\n"
+        )
+    
+    await update.message.reply_text(response_text, parse_mode="Markdown")
+
 def realistic_match_analysis(home, away, comp):
-    # Επαγγελματικές επιλογές με έμφαση στη Διπλή Ευκαιρία όπου "μας παίρνει"
+    # Επαγγελματικές επιλογές με έμφαση στη Διπλή Ευκαιρία και αποδόσεις αξίας
     value_options = [
         ("Διπλή Ευκαιρία: 1Χ", "1.42"),
         ("Διπλή Ευκαιρία: Χ2", "1.55"),
@@ -48,6 +64,7 @@ def realistic_match_analysis(home, away, comp):
     return value_options[index]
 
 async def auto_scan_and_notify(app):
+    global TODAY_BEST_PICKS
     API_TOKEN = "47725a0c893146ac825f2c23f2963b92"
     competitions = ["PL", "CL", "SA", "PD", "BL1", "FL1", "DED", "PPL", "CLI", "EC", "WC"]
     headers = {"X-Auth-Token": API_TOKEN}
@@ -102,6 +119,19 @@ async def auto_scan_and_notify(app):
                 time_str = match['dt_greece'].strftime("%H:%M")
                 market_choice, odds_choice = realistic_match_analysis(match['home'], match['away'], match['comp'])
                 
+                # Αποθήκευση στα κορυφαία σημεία της ημέρας
+                pick_data = {
+                    'home': match['home'],
+                    'away': match['away'],
+                    'comp': match['comp'],
+                    'time': time_str,
+                    'market': market_choice,
+                    'odds': odds_choice
+                }
+                TODAY_BEST_PICKS.insert(0, pick_data)
+                if len(TODAY_BEST_PICKS) > 10:
+                    TODAY_BEST_PICKS.pop()
+                
                 alert_text = (
                     f"🎯 **{match['home']} vs {match['away']}**\n"
                     f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
@@ -138,6 +168,7 @@ if __name__ == '__main__':
         
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("best", best_command))
     
     print("Chris Bet is live and running...")
     app.run_polling()
