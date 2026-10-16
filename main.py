@@ -25,25 +25,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
         "🤖 **Chris Bet — High Probability (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε με έξυπνη ανάλυση υψηλής πιθανότητας!"
+        "Το bot ενεργοποιήθηκε με μινιμαλιστικές ειδοποιήσεις!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
 def smart_market_analysis(home, away, comp):
-    # Έξυπνος αλγόριθμος επιλογής ασφαλούς σημείου υψηλής πιθανότητας
-    # Ανάλογα με τα δεδομένα του αγώνα, επιλέγει την πιο λογική αγορά με βάση στατιστικά πρότυπα
-    
-    # Λίστα με κορυφαίες επιλογές υψηλής ασφάλειας (90-95%)
     safe_markets = [
         ("Over 1.5 Goals", "1.32"),
-        ("Διπλή Ευκαιρία: 1Χ (Άσος ή Ισοπαλία)", "1.25"),
-        ("Διπλή Ευκαιρία: Χ2 (Χ ή Διπλό)", "1.28"),
+        ("Διπλή Ευκαιρία: 1Χ", "1.25"),
+        ("Διπλή Ευκαιρία: Χ2", "1.28"),
         ("Goal / Goal (G/G)", "1.72"),
         ("Under 3.5 Goals", "1.22"),
         ("Over 0.5 Goals (Ημίχρονο)", "1.38")
     ]
-    
-    # Χρήση hash των ονομάτων για σταθερή αλλά μη τυχαία επιλογή ανά αγώνα
     index = abs(hash(home + away)) % len(safe_markets)
     return safe_markets[index]
 
@@ -93,7 +87,6 @@ async def auto_scan_and_notify(app):
                 
                 await asyncio.sleep(1)
             
-            # Χρονολογική ταξινόμηση
             all_today_matches.sort(key=lambda x: x['dt_greece'])
             
             for match in all_today_matches:
@@ -101,13 +94,13 @@ async def auto_scan_and_notify(app):
                     continue
                     
                 time_str = match['dt_greece'].strftime("%H:%M")
-                market_choice, odds_choice = smart_market_analysis(match['home'], match['away'], match['comp'])
+                _, odds_choice = smart_market_analysis(match['home'], match['away'], match['comp'])
                 
+                # Εδώ διαμορφώνεται η ειδοποίηση ακριβώς όπως το ζήτησες:
                 alert_text = (
                     f"🎯 **{match['home']} vs {match['away']}**\n"
                     f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
-                    f"📊 **Πρόβλεψη High-Value:** {market_choice}\n"
-                    f"🟢 **Εκτιμώμενη Απόδοση:** {odds_choice}"
+                    f"🟢 **{odds_choice}**"
                 )
                 
                 for chat_id in list(SUBSCRIBED_CHATS):
