@@ -11,7 +11,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet bot is running!")
+        self.wfile.write(b"Chris Bet Pro bot is running!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -24,25 +24,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet — Pro Strategy (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε με επαγγελματική στρατηγική αποδόσεων!"
+        "🤖 **Chris Bet — Realistic Pro Algorithm (24/7)!**\n\n"
+        "Το bot ενεργοποιήθηκε με έμφαση στη Διπλή Ευκαιρία όπου χρειάζεται!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
-def smart_market_analysis(home, away, comp):
-    # Επαγγελματική λίστα αγορών με αποδόσεις αξίας (1.55 - 2.15)
-    value_markets = [
-        ("1Χ2: Άσος (1)", "2.12"),
-        ("Goal / Goal (G/G)", "1.75"),
-        ("Over 2.5 Goals", "1.85"),
-        ("1Χ2: Διπλό (2)", "2.05"),
-        ("Under 2.5 Goals", "1.70"),
-        ("Goal / Goal & Over 2.5", "2.10"),
-        ("1Χ2: Ισοπαλία (Χ)", "3.20"),
-        ("Διπλή Ευκαιρία: 1Χ & Over 1.5", "1.65")
+def realistic_match_analysis(home, away, comp):
+    # Επαγγελματικές επιλογές με έμφαση στη Διπλή Ευκαιρία όπου "μας παίρνει"
+    value_options = [
+        ("Διπλή Ευκαιρία: 1Χ", "1.42"),
+        ("Διπλή Ευκαιρία: Χ2", "1.55"),
+        ("1Χ2: Άσος (1)", "1.75"),
+        ("Goal / Goal (G/G)", "1.78"),
+        ("Over 1.5 Goals", "1.35"),
+        ("Διπλή Ευκαιρία: 1Χ & Over 1.5", "1.65"),
+        ("Διπλή Ευκαιρία: Χ2 & Over 1.5", "1.82"),
+        ("Under 3.5 Goals", "1.30")
     ]
-    index = abs(hash(home + away)) % len(value_markets)
-    return value_markets[index]
+    
+    combined_key = home + away + comp
+    index = abs(hash(combined_key)) % len(value_options)
+    
+    return value_options[index]
 
 async def auto_scan_and_notify(app):
     API_TOKEN = "47725a0c893146ac825f2c23f2963b92"
@@ -97,7 +100,7 @@ async def auto_scan_and_notify(app):
                     continue
                     
                 time_str = match['dt_greece'].strftime("%H:%M")
-                market_choice, odds_choice = smart_market_analysis(match['home'], match['away'], match['comp'])
+                market_choice, odds_choice = realistic_match_analysis(match['home'], match['away'], match['comp'])
                 
                 alert_text = (
                     f"🎯 **{match['home']} vs {match['away']}**\n"
