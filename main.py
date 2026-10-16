@@ -13,7 +13,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet Bot is running ultimate markets scanner!")
+        self.wfile.write(b"Chris Bet Bot is running clean layout scanner!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -26,10 +26,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet Bot — Ultimate Football Markets (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε και σαρώνει συνεχώς **όλα** τα ποδοσφαιρικά πρωταθλήματα "
-        "(άνδρες & γυναίκες) για σημερινούς αγώνες, προσφέροντας πλήρη γκάμα αγορών: "
-        "Over 0.5, Over 1.5, Over 2.5, Under, 1Χ2, Goal/Goal και άλλα με 90%+ επιτυχία!"
+        "🤖 **Chris Bet Bot — Clean & Fast Live 24/7!**\n\n"
+        "Οι ειδοποιήσεις είναι πλέον καθαρές, σύντομες και ευανάγνωστες, "
+        "χωρίς περιττό «μπουλούκι» κειμένου!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -40,17 +39,16 @@ async def auto_scan_and_notify(app):
     
     sent_matches = set()
     
-    # Πλήρης γκάμα αγορών (Over 0.5, 1.5, 2.5, Under, 1Χ2, G/G κ.λπ.)
-    ultimate_predictions_pool = [
-        ("Over 0.5 Goals (Γκολ στο ματς)", "1.08", "96.5%"),
-        ("Over 1.5 Goals", "1.35", "93.0%"),
-        ("Over 2.5 Goals", "1.75", "90.5%"),
-        ("Under 2.5 Goals", "1.80", "91.2%"),
-        ("Under 3.5 Goals", "1.42", "94.0%"),
-        ("1Χ2: Άσος (1)", "1.60", "90.8%"),
-        ("1Χ2: Διπλό (2)", "2.10", "90.2%"),
-        ("Goal / Goal (Αμφότερες Σκοράρουν)", "1.72", "91.5%"),
-        ("No Goal (Clean Sheet / Μηδέν Παθητικό)", "1.95", "90.1%")
+    predictions_pool = [
+        ("Over 0.5", "1.08", "96%"),
+        ("Over 1.5", "1.35", "93%"),
+        ("Over 2.5", "1.75", "90%"),
+        ("Under 2.5", "1.80", "91%"),
+        ("Under 3.5", "1.42", "94%"),
+        ("1Χ2: Άσος (1)", "1.60", "90%"),
+        ("1Χ2: Διπλό (2)", "2.10", "90%"),
+        ("Goal / Goal", "1.72", "92%"),
+        ("No Goal", "1.95", "90%")
     ]
     
     while True:
@@ -83,21 +81,14 @@ async def auto_scan_and_notify(app):
                     competition_name = data.get('competition', {}).get('name', comp)
                     time_str = utc_date.split('T')[1][:5]
                     
-                    date_obj = datetime.strptime(match_day, "%Y-%m-%d")
-                    formatted_date = f"{date_obj.day} Οκτωβρίου {date_obj.year}"
+                    pred_choice, odds_choice, perc_choice = random.choice(predictions_pool)
                     
-                    # Επιλογή τυχαίας αγοράς από την πλήρη λίστα
-                    pred_choice, odds_choice, perc_choice = random.choice(ultimate_predictions_pool)
-                    
+                    # Πιο καθαρή και μαζεμένη μορφή μηνύματος
                     alert_text = (
-                        f"🚨 **ΣΗΜΕΡΙΝΗ ΠΟΔΟΣΦΑΙΡΙΚΗ ΕΥΚΑΙΡΙΑ**\n\n"
-                        f"📅 **Ημερομηνία:** {formatted_date}\n"
-                        f"⏰ **Ώρα:** {time_str} UTC\n"
-                        f"🏆 **Διοργάνωση:** {competition_name}\n"
-                        f"⚽ **{home_team} vs {away_team}**\n\n"
-                        f"🔥 **Πρόβλεψη:** {pred_choice}\n"
-                        f"📊 **Ποσοστό Επιτυχίας:** {perc_choice}\n"
-                        f"💰 **Εκτιμώμενη Απόδοση:** {odds_choice}"
+                        f"⚽ **{home_team} vs {away_team}**\n"
+                        f"🏆 {competition_name} | ⏰ {time_str} UTC\n\n"
+                        f"🔥 **Πρόταση:** {pred_choice}\n"
+                        f"📊 **Απόδοση:** {odds_choice} (Επιτυχία: {perc_choice})"
                     )
                     
                     for chat_id in list(SUBSCRIBED_CHATS):
@@ -130,5 +121,5 @@ if __name__ == '__main__':
     
     threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
     
-    print("Chris Bet Bot is live with Ultimate Markets Scanner...")
+    print("Chris Bet Bot is live with Clean Layout...")
     app.run_polling()
