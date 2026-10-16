@@ -2,7 +2,7 @@ import os
 import threading
 import time
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -13,7 +13,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet bot is running clean 93%+ scanner!")
+        self.wfile.write(b"Chris Bet strict today scanner is running!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -26,8 +26,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet — 93%+ Clean Layout (24/7)!**\n\n"
-        "Το bot είναι έτοιμο και σαρώνει συνεχώς τους σημερινούς αγώνες!"
+        "🤖 **Chris Bet — 93%+ Strict Live (24/7)!**\n\n"
+        "Το bot ενεργοποιήθηκε με **αυστηρό έλεγχο ημέρας**, ώστε να εμφανίζει αποκλειστικά και μόνο τους αγώνες που είναι προγραμματισμένοι για σήμερα!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -48,10 +48,12 @@ async def auto_scan_and_notify(app):
     
     while True:
         try:
-            today_str = datetime.utcnow().strftime("%Y-%m-%d")
+            # Ακριβής σημερινή ημερομηνία σε UTC
+            today_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             
             for comp in competitions:
-                url = f"https://api.football-data.org/v4/competitions/{comp}/matches?dateFrom={today_str}&dateTo={today_str}"
+                # Ζητάμε από το API αποκλειστικά τα ματς της σημερινής ημερομηνίας
+                url = f"https://api.football-data.org/v4/competitions/{comp}/matches?dateFrom={today_date_str}&dateTo={today_date_str}"
                 response = requests.get(url, headers=headers)
                 
                 if response.status_code != 200:
@@ -62,10 +64,11 @@ async def auto_scan_and_notify(app):
                 
                 for match in matches_list:
                     match_id = match['id']
-                    utc_date = match['utcDate']
+                    utc_date = match['utcDate'] # Παράδειγμα: "2026-10-16T19:00:00Z"
                     match_day = utc_date.split('T')[0]
                     
-                    if match_day != today_str:
+                    # ΔΙΠΛΟ ΦΙΛΤΡΟ: Αν η ημερομηνία δεν ταιριάζει απόλυτα με τη σημερινή, το απορρίπτουμε
+                    if match_day != today_date_str:
                         continue
                         
                     if match_id in sent_matches:
@@ -115,5 +118,5 @@ if __name__ == '__main__':
     
     threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
     
-    print("Chris Bet is live...")
+    print("Chris Bet is live with Strict Date Filter...")
     app.run_polling()
