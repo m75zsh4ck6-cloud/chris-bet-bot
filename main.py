@@ -12,7 +12,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet real matches scanner is running!")
+        self.wfile.write(b"Chris Bet bot is running!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -25,8 +25,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet — Real Matches Only (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε! Σαρώνει πλέον μόνο τα πραγματικά σημερινά παιχνίδια με χρονολογική σειρά."
+        "🤖 **Chris Bet — Sorted by Time (24/7)!**\n\n"
+        "Το bot ενεργοποιήθηκε και σαρώνει συνεχώς τους αγώνες!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -56,4 +56,76 @@ async def auto_scan_and_notify(app):
                 if response.status_code != 200:
                     continue
                     
-                data = response.
+                data = response.json()
+                matches_list = data.get("matches", [])
+                
+                for match in matches_list:
+                    match_id = match['id']
+                    if match_id in sent_matches:
+                        continue
+                        
+                    utc_date_str = match['utcDate']
+                    dt_utc = datetime.fromisoformat(utc_date_str.replace("Z", "+00:00"))
+                    dt_greece = dt_utc + timedelta(hours=3)
+                    
+                    match_day = dt_greece.strftime("%Y-%m-%d")
+                    if match_day != today_date_str:
+                        continue
+                        
+                    all_today_matches.append({
+                        'id': match_id,
+                        'dt_greece': dt_greece,
+                        'home': match['homeTeam']['name'],
+                        'away': match['awayTeam']['name'],
+                        'comp': data.get('competition', {}).get('name', comp)
+                    })
+                
+                await asyncio.sleep(1)
+            
+            all_today_matches.sort(key=lambda x: x['dt_greece'])
+            
+            for match in all_today_matches:
+                if match['id'] in sent_matches:
+                    continue
+                    
+                time_str = match['dt_greece'].strftime("%H:%M")
+                market_choice, odds_choice = random.choice(markets_pool)
+                
+                alert_text = (
+                    f"🎯 **{match['home']} vs {match['away']}**\n"
+                    f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
+                    f"⚽ **Σημείο:** {market_choice}\n"
+                    f"🟢 **Απόδοση:** {odds_choice}"
+                )
+                
+                for chat_id in list(SUBSCRIBED_CHATS):
+                    try:
+                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
+                    except Exception as e:
+                        print(f"Error sending to {chat_id}: {e}")
+                
+                sent_matches.add(match['id'])
+                await asyncio.sleep(2)
+                
+        except Exception as e:
+            print(f"Error scanning matches: {e}")
+            
+        await asyncio.sleep(180)
+
+def start_background_loop(app):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(auto_scan_and_notify(app))
+
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    
+    TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAHAxgelBq__DPW-m2NM3a3YEuMS7SMOMDw")
+    app = ApplicationBuilder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    
+    threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
+    
+    print("Chris Bet is live...")
+    app.run_polling()
