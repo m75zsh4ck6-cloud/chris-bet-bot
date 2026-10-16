@@ -30,7 +30,7 @@ async def send_matches_to_all(app, matches_list):
         ("1Χ2: Άσος (1)", "1.55")
     ]
     
-    # Ταξινόμηση αγώνων χρονολογικά (από τα πιο νωρίς στα πιο αργά)
+    # Ταξινόμηση χρονολογικά (από τα πιο νωρίς στα πιο αργά)
     matches_list.sort(key=lambda x: x['dt_greece'])
     
     for match in matches_list:
@@ -58,27 +58,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "🤖 **Chris Bet — Sorted by Time (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε! Στέλνω αμέσως τα σημερινά παιχνίδια με χρονολογική σειρά."
+        "Το bot ενεργοποιήθηκε με κανονικές, ρεαλιστικές ώρες αγώνων!"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
     
-    # Άμεση αποστολή δοκιμαστικών/σημερινών αγώνων μόλις πατήσεις /start για να δεις αποτελέσματα αμέσως
-    now_greece = datetime.now(timezone.utc) + timedelta(hours=3)
+    # Σημερινή ημερομηνία με κανονικές, ρεαλιστικές ώρες αγώνων
+    today_base = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=3)
+    
     sample_matches = [
         {
-            'dt_greece': now_greece + timedelta(minutes=2),
+            'dt_greece': today_base.replace(hour=19, minute=30), # 19:30
             'home': 'Panathinaikos FC',
             'away': 'Olympiacos FC',
             'comp': 'Super League Greece'
         },
         {
-            'dt_greece': now_greece + timedelta(minutes=10),
+            'dt_greece': today_base.replace(hour=21, minute=00), # 21:00
             'home': 'Real Madrid',
             'away': 'FC Barcelona',
             'comp': 'Primera Division'
         },
         {
-            'dt_greece': now_greece + timedelta(minutes=20),
+            'dt_greece': today_base.replace(hour=22, minute=45), # 22:45
             'home': 'AC Milan',
             'away': 'Inter Milan',
             'comp': 'Serie A'
