@@ -44,7 +44,6 @@ async def auto_scan_and_notify(app):
         ("1Χ2: Άσος (1)", "1.55")
     ]
     
-    # Περιμένουμε λίγο να ξεκινήσει πλήρως το bot
     await asyncio.sleep(5)
     
     while True:
@@ -85,7 +84,6 @@ async def auto_scan_and_notify(app):
                 
                 await asyncio.sleep(1)
             
-            # Χρονολογική ταξινόμηση
             all_today_matches.sort(key=lambda x: x['dt_greece'])
             
             for match in all_today_matches:
@@ -124,8 +122,13 @@ if __name__ == '__main__':
     
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAHAxgelBq__DPW-m2NM3a3YEuMS7SMOMDw")
     
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
-    
     app.add_handler(CommandHandler("start", start))
     
     print("Chris Bet is live and running...")
