@@ -121,6 +121,8 @@ if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
     
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAHAxgelBq__DPW-m2NM3a3YEuMS7SMOMDw")
+    
+    # Χρήση Application αντί για Updater για πλήρη συμβατότητα με όλες τις εκδόσεις Python
     app = ApplicationBuilder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
