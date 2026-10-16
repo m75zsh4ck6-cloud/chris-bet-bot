@@ -13,7 +13,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Chris Bet clean scanner without percentages is running!")
+        self.wfile.write(b"Chris Bet chronologically sorted scanner is running!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -26,8 +26,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
     welcome_text = (
-        "🤖 **Chris Bet — Clean Layout (24/7)!**\n\n"
-        "Το bot είναι έτοιμο, χωρίς ποσοστά, δείχνοντας καθαρά τις αποδόσεις και την ώρα Ελλάδος."
+        "🤖 **Chris Bet — Sorted by Time (24/7)!**\n\n"
+        "Το bot είναι έτοιμο! Οι αγώνες θα στέλνονται πάντα με χρονολογική σειρά (από τους πιο νωρίς στους πιο αργά)."
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -38,7 +38,6 @@ async def auto_scan_and_notify(app):
     
     sent_matches = set()
     
-    # Αγορές χωρίς τα ποσοστά
     markets_pool = [
         ("Over 0.5 Goals", "1.08"),
         ("Over 1.5 Goals", "1.35"),
@@ -50,7 +49,9 @@ async def auto_scan_and_notify(app):
     while True:
         try:
             today_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            all_today_matches = []
             
+            # 1. Συλλογή όλων των αγώνων της ημέρας από όλες τις διοργανώσεις
             for comp in competitions:
                 url = f"https://api.football-data.org/v4/competitions/{comp}/matches?dateFrom={today_date_str}&dateTo={today_date_str}"
                 response = requests.get(url, headers=headers)
@@ -63,47 +64,59 @@ async def auto_scan_and_notify(app):
                 
                 for match in matches_list:
                     match_id = match['id']
+                    if match_id in sent_matches:
+                        continue
+                        
                     utc_date_str = match['utcDate']
-                    
                     dt_utc = datetime.fromisoformat(utc_date_str.replace("Z", "+00:00"))
-                    dt_greece = dt_utc + timedelta(hours=3)
+                    dt_greece = dt_utc + timedelta(hours=3) # Ώρα Ελλάδος
                     
                     match_day = dt_greece.strftime("%Y-%m-%d")
                     if match_day != today_date_str:
                         continue
                         
-                    if match_id in sent_matches:
-                        continue
-                    
                     home_team = match['homeTeam']['name']
                     away_team = match['awayTeam']['name']
                     competition_name = data.get('competition', {}).get('name', comp)
-                    time_str = dt_greece.strftime("%H:%M")
                     
-                    market_choice, odds_choice = random.choice(markets_pool)
-                    
-                    # Μορφή μηνύματος χωρίς καθόλου ποσοστά και εικονίδια ποσοστών
-                    alert_text = (
-                        f"🎯 **{home_team} vs {away_team}**\n"
-                        f"🏆 {competition_name} | ⏰ {time_str} Ελλάδος\n\n"
-                        f"⚽ **Σημείο:** {market_choice}\n"
-                        f"🟢 **Απόδοση:** {odds_choice}"
-                    )
-                    
-                    for chat_id in list(SUBSCRIBED_CHATS):
-                        try:
-                            await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
-                        except Exception as e:
-                            print(f"Error sending to {chat_id}: {e}")
-                    
-                    sent_matches.add(match_id)
+                    all_today_matches.append({
+                        'id': match_id,
+                        'dt_greece': dt_greece,
+                        'home': home_team,
+                        'away': away_team,
+                        'comp': competition_name
+                    })
                 
-                await asyncio.sleep(2)
-                        
+                await asyncio.sleep(1) # Μικρή παύση για προστασία του API
+            
+            # 2. Ταξινόμηση αγώνων βάσει ώρας (από το πιο νωρίς στο πιο αργά)
+            all_today_matches.sort(key=lambda x: x['dt_greece'])
+            
+            # 3. Αποστολή ειδοποιήσεων με τη σωστή χρονολογική σειρά
+            for match in all_today_matches:
+                time_str = match['dt_greece'].strftime("%H:%M")
+                market_choice, odds_choice = random.choice(markets_pool)
+                
+                alert_text = (
+                    f"🎯 **{match['home']} vs {match['away']}**\n"
+                    f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
+                    f"⚽ **Σημείο:** {market_choice}\n"
+                    f"🟢 **Απόδοση:** {odds_choice}"
+                )
+                
+                for chat_id in list(SUBSCRIBED_CHATS):
+                    try:
+                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
+                    except Exception as e:
+                        print(f"Error sending to {chat_id}: {e}")
+                
+                sent_matches.add(match['id'])
+                await asyncio.sleep(2) # Καθυστέρηση 2 δευτερολέπτων ανά μήνυμα
+                
         except Exception as e:
             print(f"Error scanning matches: {e}")
             
-        await asyncio.sleep(180)
+        await asyncio.sleep(180) # Επανάληψη σάρωσης ανά 3 λεπτά
 
 def start_background_loop(app):
     loop = asyncio.new_event_loop()
@@ -120,5 +133,5 @@ if __name__ == '__main__':
     
     threading.Thread(target=start_background_loop, args=(app,), daemon=True).start()
     
-    print("Chris Bet is live without percentages...")
+    print("Chris Bet is live with Sorted Time Scanner...")
     app.run_polling()
