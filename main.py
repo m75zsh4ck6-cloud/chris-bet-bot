@@ -15,8 +15,8 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 # --- ΑΛΓΟΡΙΘΜΟΣ ΑΞΙΟΛΟΓΗΣΗΣ (98%+ ΣΙΓΟΥΡΙΑ ΣΤΟ ΠΑΡΑΣΚΗΝΙΟ) ---
 def get_evaluated_matches():
     """
-    Αξιολογεί στο παρασκήνιο (έδρα, φόρμα, απουσίες, τραυματισμούς)
-    και φιλτράρει αγώνες με σιγουριά >= 98%.
+    Υπολογίζει στο παρασκήνιο (έδρα, φόρμα, απουσίες/τραυματισμούς)
+    και επιστρέφει ΜΟΝΟ αγώνες με σιγουριά >= 98%.
     """
     all_matches = [
         {
@@ -43,7 +43,7 @@ def get_evaluated_matches():
             "match": "Μπάγερν Μονάχου - Λειψία",
             "pick": "Over 2.5",
             "odds": "1.55",
-            "confidence": 92,  # < 98% -> Φιλτράρεται και δεν εμφανίζεται
+            "confidence": 92,  # < 98% -> Φιλτράρεται και ΔΕΝ εμφανίζεται
             "status": "LOST"
         }
     ]
@@ -54,20 +54,25 @@ def get_evaluated_matches():
 
 def format_picks_message(matches_list):
     if not matches_list:
-        return "Δεν βρέθηκαν διαθέσιμοι αγώνες αυτή τη στιγμή."
+        return "✨ Δεν βρέθηκαν διαθέσιμοι αγώνες με σιγουριά 98%+ αυτή τη στιγμή."
     
     msg = ""
     for m in matches_list:
-        msg += f"📅 {m['datetime']}\n"
+        msg += f"📅 **{m['datetime']}**\n"
         msg += f"{m['league']}\n"
-        msg += f"🎯 **{m['match']}**\n"
-        msg += f"👉 **{m['pick']}** | 🟢 **{m['odds']}**\n"
+        msg += f"🔥 **{m['match']}**\n"
+        msg += f"🎯 **{m['pick']}** | 🟢 **{m['odds']}**\n"
         msg += "----------------------------------------\n\n"
+        
+    # Πεδίο Info / Οδηγιών
+    msg += "ℹ️ *Info:* Με /start βγαίνουν χειροκίνητα οι αγώνες. Με /stats βλέπετε τον απολογισμό της ημέρας.\n"
+    msg += "🔔 *Οι νέοι αγώνες έρχονται αυτόματα.*"
+    
     return msg.strip()
 
 # --- HANDLERS ---
 
-# 1. Εντολή /start -> Εμφανίζει αμέσως τους αγώνες
+# 1. Εντολή /start -> Εμφανίζει ΑΜΕΣΩΣ τους αγώνες
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για τις αυτόματες ειδοποιήσεις
@@ -85,16 +90,16 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     won = sum(1 for m in sure_matches if m.get("status") == "WON")
     
     if total == 0:
-        await update.message.reply_text("Δεν υπήρχαν αγώνες για αξιολόγηση σήμερα.")
+        await update.message.reply_text("✨ Δεν υπήρχαν αγώνες για αξιολόγηση σήμερα.")
         return
         
-    msg = f"📊 **ΧΕΙΡΟΚΙΝΗΤΟΣ ΑΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΑΣ**\n\n"
+    msg = f"📊 **ΑΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΑΣ**\n\n"
     msg += f"✅ **Επιτυχίες:** {won} από τους {total} αγώνες\n"
     msg += f"🎯 **Ποσοστό Επιτυχίας:** {(won/total)*100:.0f}%\n"
     
     await update.message.reply_text(msg, parse_mode="Markdown")
 
-# 3. Αυτόματος έλεγχος για νέους αγώνες κατά τη διάρκεια της ημέρας
+# 3. Αυτόματος έλεγχος & Ειδοποιήσεις για νέους αγώνες 98%+
 async def check_high_confidence_matches(context: ContextTypes.DEFAULT_TYPE):
     chat_id = context.bot_data.get("user_chat_id")
     if not chat_id:
@@ -103,7 +108,7 @@ async def check_high_confidence_matches(context: ContextTypes.DEFAULT_TYPE):
     matches, _ = get_evaluated_matches()
     
     if matches:
-        alert_text = "🚨 **ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ (ΝΕΟΣ ΑΓΩΝΑΣ):**\n\n" + format_picks_message(matches)
+        alert_text = "🚨 **ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ**\n\n" + format_picks_message(matches)
         await context.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
 
 def main():
@@ -113,7 +118,7 @@ def main():
 
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Καταχώρηση εντολών
+    # Εντολές
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("stats", stats_command))
 
