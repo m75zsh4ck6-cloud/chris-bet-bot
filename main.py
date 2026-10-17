@@ -1,22 +1,9 @@
 import os
-import threading
 import asyncio
 from datetime import datetime, timezone, timedelta
 import requests
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Chris Bet Pro is active!")
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
-    server.serve_forever()
 
 SUBSCRIBED_CHATS = set()
 TODAY_BEST_PICKS = []
@@ -209,17 +196,17 @@ async def auto_scan_and_notify(app):
         await asyncio.sleep(180)
 
 async def post_init(application):
-    application.create_task(auto_scan_and_notify(application))
+    asyncio.create_task(auto_scan_and_notify(application))
 
-if __name__ == '__main__':
-    threading.Thread(target=run_web_server, daemon=True).start()
-    
+def main():
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAEDgpg07QlrHH0QiZdCQgP2eoflpq8xWs")
-    
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("best", best_command))
     app.add_handler(CommandHandler("combo", combo_command))
     
-    print("Chris Bet is running...")
+    print("Chris Bet is starting polling...")
     app.run_polling()
+
+if __name__ == '__main__':
+    main()
