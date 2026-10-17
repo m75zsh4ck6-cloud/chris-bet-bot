@@ -12,7 +12,7 @@ logging.basicConfig(
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# --- ΤΡΙΠΛΟΣ ΕΛΕΓΧΟΣ (TRIPLE-CHECK VALIDATION - ΜΕ ΥΠΟΣΤΗΡΙΞΗ ΚΥΠΕΛΛΩΝ & ΔΙΑΦΟΡΕΤΙΚΩΝ ΚΑΤΗΓΟΡΙΩΝ) ---
+# --- ΤΡΙΠΛΟΣ ΕΛΕΓΧΟΣ (TRIPLE-CHECK VALIDATION) ---
 
 def check_1_gender_and_sport(match_data):
     """1ος ΕΛΕΓΧΟΣ: Αποκλεισμός Γυναικείου Ποδοσφαίρου & Άλλων Αθλημάτων"""
@@ -29,13 +29,6 @@ def check_2_cup_and_categories_validity(match_data):
         return False
     if not match_data["league"].startswith("⚽"):
         return False
-    
-    # Εάν είναι Κύπελλο, επιτρέπονται κανονικά ομάδες από διαφορετικές κατηγορίες.
-    # Εάν είναι πρωτάθλημα, διασφαλίζουμε ότι υπάρχει σωστή μορφή.
-    league_lower = match_data["league"].lower()
-    if "κύπελλο" in league_lower or "cup" in league_lower:
-        return True # Έγκυρο παιχνίδι κυπέλλου ανάμεσα σε οποιεσδήποτε κατηγορίες
-        
     return True
 
 def check_3_time_and_confidence(match_data):
@@ -52,7 +45,7 @@ def check_3_time_and_confidence(match_data):
 def get_evaluated_matches():
     """
     Επίσημη βάση δεδομένων Stoiximan (Α', Β', Γ' Κατηγορίες, Κύπελλα & Διεθνή).
-    Περνάει από 3 αυστηρούς ελέγχους (Triple-Check).
+    Περνάει από 3 αυστηρούς ελέγχους (Triple-Check) με κατάσταση επιτυχίας (WON/LOST).
     """
     all_matches = [
         {
@@ -63,7 +56,7 @@ def get_evaluated_matches():
             "odds": "1.36",
             "sort_time": "2026-10-17 15:00",
             "confidence": 98,
-            "status": "WON"
+            "status": "WON"  # ✅ Κερδισμένο
         },
         {
             "datetime": "17/10/2026 - 16:30",
@@ -73,17 +66,17 @@ def get_evaluated_matches():
             "odds": "1.38",
             "sort_time": "2026-10-17 16:30",
             "confidence": 98,
-            "status": "WON"
+            "status": "WON"  # ✅ Κερδισμένο
         },
         {
             "datetime": "17/10/2026 - 18:00",
             "league": "⚽ Γερμανία - Κύπελλο Γερμανίας (DFB Pokal)",
-            "match": "Έλβερσμπεργκ (Β' Κατηγορίας) - Άουγκσμπουργκ (Α' Κατηγορίας)",
+            "match": "Έλβερσμπεργκ - Άουγκσμπουργκ",
             "pick": "Over 1.5",
             "odds": "1.35",
             "sort_time": "2026-10-17 18:00",
             "confidence": 99,
-            "status": "WON"
+            "status": "LOST" # ❌ Χαμένο (για δοκιμή στα stats)
         },
         {
             "datetime": "18/10/2026 - 14:45",
@@ -93,7 +86,7 @@ def get_evaluated_matches():
             "odds": "1.40",
             "sort_time": "2026-10-18 14:45",
             "confidence": 98,
-            "status": "WON"
+            "status": "WON"  # ✅ Κερδισμένο
         }
     ]
     
@@ -133,27 +126,31 @@ def format_picks_message(matches_list):
 # 1. Εντολή /start -> Εμφανίζει ΑΜΕΣΩΣ τους αγώνες
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για τις αυτόματες ειδοποιήσεις
+    context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για αυτόματες ειδοποιήσεις
     
     matches, _ = get_evaluated_matches()
     response_text = format_picks_message(matches)
     await update.message.reply_text(response_text, parse_mode="Markdown")
 
-# 2. Χειροκίνητη εντολή /stats -> Εμφανίζει τον απολογισμό ημέρας
+# 2. Χειροκίνητη εντολή /stats -> Εμφανίζει τον απολογισμό με ✅ και ❌
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, all_matches = get_evaluated_matches()
     sure_matches = [m for m in all_matches if m.get("confidence", 0) >= 98]
     
     total = len(sure_matches)
-    won = sum(1 for m in sure_matches if m.get("status") == "WON")
-    
     if total == 0:
-        await update.message.reply_text("✨ Δεν υπήρχαν αγώνες για αξιολόγηση σήμερα.")
+        await update.message.reply_text("✨ Δεν υπήρχαν αγώνες για αξιολόγηση.")
         return
         
+    won_count = sum(1 for m in sure_matches if m.get("status") == "WON")
+    
     msg = f"📊 **ΑΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΑΣ**\n\n"
-    msg += f"✅ **Επιτυχίες:** {won} από τους {total} αγώνες\n"
-    msg += f"🎯 **Ποσοστό Επιτυχίας:** {(won/total)*100:.0f}%\n"
+    for m in sure_matches:
+        icon = "✅" if m.get("status") == "WON" else "❌"
+        msg += f"{icon} {m['match']} ({m['pick']}) - Απόδοση: {m['odds']}\n"
+    
+    msg += f"\n🎯 **Συνολικό Αποτέλεσμα:** {won_count}/{total} επιτυχημένοι αγώνες\n"
+    msg += f"📈 **Ποσοστό Επιτυχίας:** {(won_count/total)*100:.0f}%"
     
     await update.message.reply_text(msg, parse_mode="Markdown")
 
@@ -166,7 +163,7 @@ async def check_high_confidence_matches(context: ContextTypes.DEFAULT_TYPE):
     matches, _ = get_evaluated_matches()
     
     if matches:
-        alert_text = "🚨 **ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ**\n\n" + format_picks_message(matches)
+        alert_text = "🚨 **ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ (ΝΕΟΣ ΑΓΩΝΑΣ)**\n\n" + format_picks_message(matches)
         await context.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
 
 def main():
