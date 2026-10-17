@@ -1,7 +1,7 @@
 import os
 import logging
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -14,114 +14,87 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 
-def fetch_real_past_history():
+def fetch_live_matches():
     """
-    Τραβάει από το API τα πραγματικά αποτελέσματα των προηγούμενων 3 ημερών
-    ώστε τα σκορ και οι αγώνες να ανταποκρίνονται 100% στην πραγματικότητα.
+    Τραβάει τους σημερινούς πραγματικούς αγώνες από το API-Football.
     """
     if not RAPIDAPI_KEY:
         return []
 
-    past_days_data = []
+    today_date = datetime.now().strftime("%Y-%m-%d")
+    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
+    querystring = {"date": today_date}
+    
     headers = {
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
     }
 
-    # Εξέταση των προηγούμενων 3 ημερών
-    for i in range(1, 4):
-        target_date_dt = datetime.now() - timedelta(days=i)
-        target_date_str = target_date_dt.strftime("%Y-%m-%d")
-        display_date = target_date_dt.strftime("%d/%m/%Y")
+    try:
+        response = requests.get(url, headers=headers, params=querystring, timeout=10)
+        data = response.json()
         
-        url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-        querystring = {"date": target_date_str}
+        if "response" not in data:
+            return []
 
-        try:
-            response = requests.get(url, headers=headers, params=querystring, timeout=6)
-            data = response.json()
+        clean_matches = []
+        for fixture in data["response"]:
+            league_name = fixture.get("league", {}).get("name", "")
+            country = fixture.get("league", {}).get("country", "")
+            home_team = fixture.get("teams", {}).get("home", {}).get("name", "")
+            away_team = fixture.get("teams", {}).get("away", {}).get("name", "")
+            status_short = fixture.get("fixture", {}).get("status", {}).get("short", "NS")
+            goals_home = fixture.get("goals", {}).get("home", 0)
+            goals_away = fixture.get("goals", {}).get("away", 0)
+            fixture_date = fixture.get("fixture", {}).get("date", "")
+
+            # Μετατροπή ώρας
+            try:
+                dt_obj = datetime.fromisoformat(fixture_date.replace("Z", "+00:00"))
+                time_str = dt_obj.strftime("%H:%M")
+            except:
+                time_str = "--:--"
+
+            # Φιλτράρισμα γυναικείου ποδοσφαίρου
+            text_check = f"{home_team} {away_team} {league_name}".lower()
+            if any(term in text_check for term in ["women", "wsl", "liga f", "(γ)"]):
+                continue
+
+            score_str = f"{goals_home} - {goals_away}" if status_short != "NS" else "VS"
             
-            day_matches = []
-            if "response" in data and data["response"]:
-                count = 0
-                for fixture in data["response"]:
-                    status = fixture.get("fixture", {}).get("status", {}).get("short", "")
-                    # Παίρνουμε μόνο τελειωμένους αγώνες (FT)
-                    if status == "FT":
-                        league_name = fixture.get("league", {}).get("name", "")
-                        home = fixture.get("teams", {}).get("home", {}).get("name", "")
-                        away = fixture.get("teams", {}).get("away", {}).get("name", "")
-                        g_home = fixture.get("goals", {}).get("home", 0)
-                        g_away = fixture.get("goals", {}).get("goals", {}).get("away", 0) or fixture.get("goals", {}).get("away", 0)
-                        
-                        # Φιλτράρισμα για να αποφύγουμε γυναικείο ποδόσφαιρο ή άγνωστες κατηγορίες
-                        text_check = f"{home} {away} {league_name}".lower()
-                        if any(term in text_check for term in ["women", "wsl", "liga f", "(γ)"]):
-                            continue
+            clean_matches.append({
+                "time": time_str,
+                "league": f"⚽ {country} - {league_name}",
+                "match": f"{home_team} {score_str} {away_team}",
+                "status": status_short
+            })
 
-                        # Ελεγχόμενη απόκλιση (ένα χαμένο στις 3 μέρες για ρεαλισμό)
-                        if i == 2 and count == 1:
-                            res_icon = "❌ ΧΑΜΕΝΟ"
-                            pick_type = "Under 1.5"
-                            odds = "1.75"
-                        else:
-                            res_icon = "✅ ΚΕΡΔΙΣΜΕΝΟ"
-                            pick_type = "Over 1.5"
-                            odds = "1.45"
+        return clean_matches[:12] # Επιστρέφει τους πρώτους 12 αγώνες
 
-                        day_matches.append({
-                            "match": f"{home} - {away}",
-                            "score": f"{g_home}:{g_away}",
-                            "pick": pick_type,
-                            "odds": odds,
-                            "result": res_icon
-                        })
-                        
-                        count += 1
-                        if count >= 3:  # 3 αγώνες ανά ημέρα
-                            break
+    except Exception as e:
+        logging.error(f"Error fetching matches: {e}")
+        return []
 
-            if day_matches:
-                past_days_data.append({
-                    "date": display_date,
-                    "matches": day_matches
-                })
-        except Exception as e:
-            logging.error(f"Error fetching date {target_date_str}: {e}")
+def format_matches_message(matches_list):
+    if not matches_list:
+        return "📊 **ΣΗΜΕΡΙΝΟΙ ΑΓΩΝΕΣ**\n\nℹ️ Δεν βρέθηκαν διαθέσιμοι αγώνες αυτή τη στιγμή από το API."
 
-    return past_days_data
-
-def format_history_message():
-    history = fetch_real_past_history()
-    today_str = datetime.now().strftime("%d/%m/%Y")
-
-    msg = f"📊 **ΕΠΙΣΗΜΟΣ ΑΠΟΛΟΓΙΣΜΟΣ (LIVE API ARCHIVE)**\n"
-    msg += f"🗓️ Ημερομηνία: `{today_str}`\n"
+    msg = "📊 **ΣΗΜΕΡΙΝΟ ΠΡΟΓΡΑΜΜΑ & LIVE SCORE**\n"
     msg += "----------------------------------------\n\n"
-
-    if history:
-        for day in history:
-            msg += f"📅 **Ημερομηνία: {day['date']}**\n"
-            for m in day["matches"]:
-                msg += f"• **{m['match']}** (`{m['score']}`)\n"
-                msg += f"  🎯 Pick: `{m['pick']}` | 🟢 Απόδοση: `{m['odds']}` | {m['result']}\n"
-            msg += "\n"
-    else:
-        msg += "⏳ Συγχρονισμός ιστορικού από βάση δεδομένων...\n\n"
-
-    msg += "----------------------------------------\n"
-    msg += "🔥 **ΤΟ ΔΥΝΑΤΟ ΤΥΡΑΚΙ ΣΗΜΕΡΑ (VIP PICK)**\n\n"
-    msg += "⚽ Γαλλία - Ligue 1\n"
-    msg += "🔥 **Λιόν - Μαρσέιγ**\n"
-    msg += "🎯 Εκτίμηση: **Over 2.5 & Goal/Goal**\n"
-    msg += "🟢 Απόδοση: `1.85` | ⚡ Εμπιστοσύνη: `95%`\n\n"
-    msg += "👇 *Πατήστε ανανέωση για τα επόμενα σήματα.*"
     
+    for m in matches_list:
+        msg += f"⏰ `{m['time']}` | {m['league']}\n"
+        msg += f"🔥 **{m['match']}** [Status: `{m['status']}`]\n"
+        msg += "----------------------------------------\n"
+
+    msg += "\n🔄 *Πατήστε ανανέωση για τα πιο πρόσφατα δεδομένα.*"
     return msg
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = format_history_message()
-    keyboard = [[InlineKeyboardButton("🔄 Ανανέωση Σήματος", callback_data="refresh_history")]]
+    matches = fetch_live_matches()
+    text = format_matches_message(matches)
+
+    keyboard = [[InlineKeyboardButton("🔄 Ανανέωση Σκορ", callback_data="refresh_scores")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if update.message:
@@ -131,8 +104,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 Συγχρονισμός δεδομένων...")
-    if query.data == "refresh_history":
+    await query.answer("🔄 Ενημέρωση σκορ...")
+    if query.data == "refresh_scores":
         await start_command(update, context)
 
 def main():
@@ -144,7 +117,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Real API Track Record Bot running successfully...")
+    print("Stats Tracker Bot is running...")
     application.run_polling()
 
 if __name__ == "__main__":
