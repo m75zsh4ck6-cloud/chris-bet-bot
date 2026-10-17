@@ -1,5 +1,6 @@
 import os
 import logging
+from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -11,59 +12,72 @@ logging.basicConfig(
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# --- Ο ΑΛΓΟΡΙΘΜΟΣ ΜΕ ΤΑ ΦΙΛΤΡΑ ΚΑΙ ΤΑ ΣΗΜΕΙΑ ΣΟΥ (Σ στα ελληνικά) ---
+# --- ΑΛΓΟΡΙΘΜΟΣ ΜΕ ΕΛΛΗΝΙΚΕΣ ΟΜΑΔΕΣ, ΗΜΕΡΟΜΗΝΙΑ & ΑΝΑΛΥΣΗ ΚΑΤΑΣΤΑΣΗΣ ---
 def get_matches():
     return [
         {
-            "match": "FC Bayern München vs RB Leipzig",
+            "match": "Μπάγερν Μονάχου - Λειψία",
+            "league": "⚽ Γερμανία - Bundesliga",
+            "datetime": "17/10/2026 - 19:30",
             "pick": "Διπλή Ευκαιρία: X2 & Over 1.5",
             "odds": "1.82",
             "trust": "Μεσαία Εμπιστοσύνη",
             "stars": "⚡",
             "stake": "1/10",
-            "confidence": 85
+            "confidence": 85,
+            "analysis": "Φόρμα: 3Ν-1Ι-1Η | Απουσίες: Λείπει βασικός επιθετικός (τραυματίας), κουρασμένη η Μπάγερν από Ευρώπη."
         },
         {
-            "match": "FC Schalke 04 vs 1. FSV Mainz 05",
+            "match": "Σάλκε - Μάιντς",
+            "league": "⚽ Γερμανία - Bundesliga",
+            "datetime": "17/10/2026 - 21:30",
             "pick": "Διπλή Ευκαιρία: 1X",
             "odds": "1.42",
             "trust": "Υψηλή Εμπιστοσύνη",
             "stars": "⚡Εξαιρετική",
             "stake": "3/10",
-            "confidence": 95  # >= 95% Σιγουριά
+            "confidence": 95,  # >= 95% Σιγουριά (Ειδοποίηση)
+            "analysis": "Φόρμα: 4Ν-1Ν | Απουσίες: Πλήρης η Σάλκε, η Μάιντς έχει 2 σημαντικές απουσίες στο κέντρο."
         },
         {
-            "match": "SV 07 Elversberg vs FC Augsburg",
-            "pick": "Over 1.5 Goals",
+            "match": "Έλβερσμπεργκ - Άουγκσμπουργκ",
+            "league": "⚽ Γερμανία - DFB Pokal",
+            "datetime": "18/10/2026 - 18:00",
+            "pick": "Over 1.5 Γκολ",
             "odds": "1.35",
             "trust": "Υψηλή Εμπιστοσύνη",
             "stars": "⚡Εξαιρετική",
             "stake": "3/10",
-            "confidence": 98  # >= 95% Σιγουριά
+            "confidence": 98,  # >= 95% Σιγουριά (Ειδοποίηση)
+            "analysis": "Φόρμα: Πολύ δυνατές επιθέσεις και από τις δύο ομάδες, αναμένεται ανοιχτό παιχνίδι."
         }
     ]
 
-def format_picks_message(matches_list, header="🔥 ΚΟΡΥΦΑΙΕΣ ΕΠΙΛΟΓΕΣ:"):
+def format_picks_message(matches_list, header="🔥 ΚΟΡΥΦΑΙΕΣ ΕΠΙΛΟΓΕΣ (ΣΤΟΙΧΙΣΜΑ):"):
     if not matches_list:
         return "Δεν βρέθηκαν διαθέσιμοι αγώνες αυτή τη στιγμή."
     
     msg = f"{header}\n\n"
     for m in matches_list:
-        msg += f"🎯 {m['match']}\n"
-        msg += f"👉 {m['pick']} | Απόδοση: {m['odds']}\n"
-        msg += f"{m['stars']} {m['trust']} | Ποντάρισμα: {m['stake']}\n\n"
+        msg += f"{m['league']}\n"
+        msg += f"🎯 **{m['match']}**\n"
+        msg += f"📅 Ώρα: {m['datetime']}\n"
+        msg += f"👉 **Πρόταση:** {m['pick']} | Απόδοση: **{m['odds']}**\n"
+        msg += f"{m['stars']} {m['trust']} | Ποντάρισμα: {m['stake']}\n"
+        msg += f"🔍 *Ανάλυση & Φόρμα:* {m['analysis']}\n"
+        msg += "----------------------------------------\n\n"
     return msg.strip()
 
 # --- HANDLERS ---
 
-# 1. Με το /start φέρνει ΑΜΕΣΩΣ τους αγώνες στα ελληνικά
+# 1. Άμεση προβολή με το /start
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για αυτόματες ειδοποιήσεις
     
     matches = get_matches()
-    response_text = format_picks_message(matches, header="🔥 ΚΟΡΥΦΑΙΕΣ ΕΠΙΛΟΓΕΣ:")
-    await update.message.reply_text(response_text)
+    response_text = format_picks_message(matches, header="🔥 ΚΟΡΥΦΑΙΕΣ ΕΠΙΛΟΓΕΣ (ΣΤΟΙΧΙΣΜΑ):")
+    await update.message.reply_text(response_text, parse_mode="Markdown")
 
 # 2. Αυτόματος έλεγχος για αγώνες με >= 95% σιγουριά
 async def check_high_confidence_matches(context: ContextTypes.DEFAULT_TYPE):
@@ -79,7 +93,7 @@ async def check_high_confidence_matches(context: ContextTypes.DEFAULT_TYPE):
             top_sure_matches, 
             header="🚨 ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ (Σιγουριά ≥ 95%):"
         )
-        await context.bot.send_message(chat_id=chat_id, text=alert_text)
+        await context.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
@@ -91,7 +105,7 @@ def main():
     # Εντολή /start
     application.add_handler(CommandHandler("start", start_command))
 
-    # Αυτόματος έλεγχος κάθε 1 ώρα (3600 δευτερόλεπτα) για αγώνες >= 95%
+    # Αυτόματος έλεγχος κάθε 1 ώρα για αγώνες >= 95%
     job_queue = application.job_queue
     if job_queue:
         job_queue.run_repeating(check_high_confidence_matches, interval=3600, first=10)
