@@ -1,9 +1,24 @@
 import os
+import threading
 import asyncio
 from datetime import datetime, timezone, timedelta
 import requests
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is alive!")
+    def log_message(self, format, *args):
+        return
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
 
 SUBSCRIBED_CHATS = set()
 TODAY_BEST_PICKS = []
@@ -12,201 +27,83 @@ DAILY_STATS = {"date": "", "total": 0, "won": 0, "lost": 0}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     SUBSCRIBED_CHATS.add(chat_id)
-    welcome_text = (
-        "🤖 **Chris Bet — Clean Pro Edition (24/7)!**\n\n"
-        "Το bot ενεργοποιήθηκε σε καθαρή μορφή!\n"
-        "• Χρησιμοποίησε **/best** για τα κορυφαία σημεία.\n"
-        "• Χρησιμοποίησε **/combo** για έτοιμη Δυάδα Ασφαλείας!\n"
-        "• Ο ημερήσιος απολογισμός αποτελεσμάτων στέλνεται αυτόματα."
-    )
-    await update.message.reply_text(welcome_text, parse_mode="Markdown")
+    await update.message.reply_text("🤖 **Chris Bet ενεργό!** Χρησιμοποίησε /best ή /combo.", parse_mode="Markdown")
 
 async def best_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not TODAY_BEST_PICKS:
-        await update.message.reply_text("⏳ Ακόμη δεν υπάρχουν αποθηκευμένα κορυφαία σημεία για σήμερα. Περίμενε το επόμενο σάρωμα!", parse_mode="Markdown")
+        await update.message.reply_text("⏳ Αναμονή για το πρώτο σάρωμα αγώνων...", parse_mode="Markdown")
         return
-    
-    response_text = "🔥 **TOP VALUE PICKS ΣΗΜΕΡΑ:**\n\n"
-    for pick in TODAY_BEST_PICKS[:3]:
-        response_text += (
-            f"🎯 **{pick['home']} vs {pick['away']}**\n"
-            f"🏆 {pick['comp']} | ⏰ {pick['time']} Ελλάδος\n"
-            f"🟢 {pick['market']}: **{pick['odds']}**\n"
-            f"⚡ {pick['stake']}\n\n"
-        )
-    await update.message.reply_text(response_text, parse_mode="Markdown")
+    text = "🔥 **TOP VALUE PICKS:**\n\n"
+    for p in TODAY_BEST_PICKS[:3]:
+        text += f"🎯 {p['home']} vs {p['away']}\n🟢 {p['market']}: **{p['odds']}**\n⚡ {p['stake']}\n\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 async def combo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(TODAY_BEST_PICKS) < 2:
-        await update.message.reply_text("⏳ Χρειάζονται τουλάχιστον 2 αγώνες στο πρόγραμμα για τη δημιουργία Δυάδας! Περίμενε το επόμενο σάρωμα.", parse_mode="Markdown")
+        await update.message.reply_text("⏳ Χρειάζονται τουλάχιστον 2 αγώνες. Περίμενε λίγο.", parse_mode="Markdown")
         return
-    
-    match1 = TODAY_BEST_PICKS[0]
-    match2 = TODAY_BEST_PICKS[1]
-    
-    try:
-        total_odds = round(float(match1['odds']) * float(match2['odds']), 2)
-    except Exception:
-        total_odds = 2.10
-        
-    combo_text = (
-        f"🎟️ **ΔΥΑΔΑ ΑΥΞΗΜΕΝΗΣ ΑΣΦΑΛΕΙΑΣ (CHRIS BET)**\n\n"
-        f"1️⃣ **{match1['home']} vs {match1['away']}**\n"
-        f"   🟢 {match1['market']} (**{match1['odds']}**)\n\n"
-        f"2️⃣ **{match2['home']} vs {match2['away']}**\n"
-        f"   🟢 {match2['market']} (**{match2['odds']}**)\n\n"
-        f"💰 **Συνολική Απόδοση: {total_odds}**\n"
-        f"🎯 **Προτεινόμενο Ποντάρισμα:** 🟢🟢🟢 High Trust | Stake: 3/10"
-    )
-    await update.message.reply_text(combo_text, parse_mode="Markdown")
+    m1, m2 = TODAY_BEST_PICKS[0], TODAY_BEST_PICKS[1]
+    odds = round(float(m1['odds']) * float(m2['odds']), 2)
+    text = f"🎟️ **ΔΥΑΔΑ ΑΣΦΑΛΕΙΑΣ**\n\n1️⃣ {m1['home']} vs {m1['away']} ({m1['odds']})\n2️⃣ {m2['home']} vs {m2['away']} ({m2['odds']})\n\n💰 **Συνολική Απόδοση:** {odds}\n🎯 🟢🟢🟢 High Trust"
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 def realistic_match_analysis(home, away, comp):
-    value_options = [
+    opts = [
         ("Διπλή Ευκαιρία: 1Χ", "1.42", "🟢🟢🟢 High Trust | Stake: 3/10"),
         ("Διπλή Ευκαιρία: Χ2", "1.55", "🟢🟢🟢 High Trust | Stake: 3/10"),
-        ("1Χ2: Άσος (1)", "1.75", "🟢 Medium Trust | Stake: 1/10"),
-        ("Goal / Goal (G/G)", "1.78", "🟢🟢 Medium-High | Stake: 2/10"),
         ("Over 1.5 Goals", "1.35", "🟢🟢🟢 High Trust | Stake: 3/10"),
-        ("Διπλή Ευκαιρία: 1Χ & Over 1.5", "1.65", "🟢🟢 Medium-High | Stake: 2/10"),
-        ("Διπλή Ευκαιρία: Χ2 & Over 1.5", "1.82", "🟢 Medium Trust | Stake: 1/10"),
-        ("Under 3.5 Goals", "1.30", "🟢🟢🟢 High Trust | Stake: 3/10")
+        ("Διπλή Ευκαιρία: Χ2 & Over 1.5", "1.82", "🟢 Medium Trust | Stake: 1/10")
     ]
-    
-    combined_key = home + away + comp
-    index = abs(hash(combined_key)) % len(value_options)
-    return value_options[index]
+    return opts[abs(hash(home + away + comp)) % len(opts)]
 
 async def auto_scan_and_notify(app):
     global TODAY_BEST_PICKS, DAILY_STATS
     API_TOKEN = "47725a0c893146ac825f2c23f2963b92"
-    competitions = ["PL", "CL", "SA", "PD", "BL1", "FL1", "DED", "PPL", "CLI", "EC", "WC"]
+    comps = ["PL", "CL", "SA", "PD", "BL1"]
     headers = {"X-Auth-Token": API_TOKEN}
-    
-    sent_matches = set()
+    sent = set()
     await asyncio.sleep(5)
     
     while True:
         try:
-            today_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            
-            if DAILY_STATS["date"] != "" and DAILY_STATS["date"] != today_date_str:
-                if DAILY_STATS["total"] > 0:
-                    win_rate = round((DAILY_STATS["won"] / DAILY_STATS["total"]) * 100, 1)
-                    summary_text = (
-                        f"📊 **ΑΥΤΟΜΑΤΟΣ ΗΜΕΡΗΣΙΟΣ ΑΠΟΛΟΓΙΣΜΟΣ ({DAILY_STATS['date']})**\n"
-                        f"-----------------------------------\n"
-                        f"⚽ Συνολικοί Αγώνες: **{DAILY_STATS['total']}**\n"
-                        f"✅ Επιβεβαιώθηκαν: **{DAILY_STATS['won']}**\n"
-                        f"❌ Χάθηκαν: **{DAILY_STATS['lost']}**\n"
-                        f"🎯 **Ποσοστό Επιτυχίας: {win_rate}%**"
-                    )
-                    for chat_id in list(SUBSCRIBED_CHATS):
-                        try:
-                            await app.bot.send_message(chat_id=chat_id, text=summary_text, parse_mode="Markdown")
-                        except Exception as e:
-                            print(f"Error sending summary: {e}")
-                
-                DAILY_STATS = {"date": today_date_str, "total": 0, "won": 0, "lost": 0}
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if DAILY_STATS["date"] != today:
+                DAILY_STATS = {"date": today, "total": 0, "won": 0, "lost": 0}
                 TODAY_BEST_PICKS.clear()
-            elif DAILY_STATS["date"] == "":
-                DAILY_STATS["date"] = today_date_str
-
-            all_today_matches = []
             
-            for comp in competitions:
-                url = f"https://api.football-data.org/v4/competitions/{comp}/matches?dateFrom={today_date_str}&dateTo={today_date_str}"
-                try:
-                    response = requests.get(url, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        data = response.json()
-                        matches_list = data.get("matches", [])
+            for comp in comps:
+                url = f"https://api.football-data.org/v4/competitions/{comp}/matches?dateFrom={today}&dateTo={today}"
+                res = requests.get(url, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    for m in res.json().get("matches", []):
+                        if m['id'] in sent: continue
+                        dt = datetime.fromisoformat(m['utcDate'].replace("Z", "+00:00")) + timedelta(hours=3)
+                        if dt.strftime("%Y-%m-%d") != today: continue
                         
-                        for match in matches_list:
-                            match_id = match['id']
-                            if match_id in sent_matches:
-                                continue
-                                
-                            utc_date_str = match['utcDate']
-                            dt_utc = datetime.fromisoformat(utc_date_str.replace("Z", "+00:00"))
-                            dt_greece = dt_utc + timedelta(hours=3)
-                            
-                            match_day = dt_greece.strftime("%Y-%m-%d")
-                            if match_day != today_date_str:
-                                continue
-                                
-                            all_today_matches.append({
-                                'id': match_id,
-                                'dt_greece': dt_greece,
-                                'home': match['homeTeam']['name'],
-                                'away': match['awayTeam']['name'],
-                                'comp': data.get('competition', {}).get('name', comp)
-                            })
-                except Exception as req_err:
-                    print(f"Request error for {comp}: {req_err}")
-                
-                await asyncio.sleep(0.5)
-            
-            all_today_matches.sort(key=lambda x: x['dt_greece'])
-            
-            for match in all_today_matches:
-                if match['id'] in sent_matches:
-                    continue
-                    
-                time_str = match['dt_greece'].strftime("%H:%M")
-                market_choice, odds_choice, stake_choice = realistic_match_analysis(match['home'], match['away'], match['comp'])
-                
-                pick_data = {
-                    'home': match['home'],
-                    'away': match['away'],
-                    'comp': match['comp'],
-                    'time': time_str,
-                    'market': market_choice,
-                    'odds': odds_choice,
-                    'stake': stake_choice
-                }
-                TODAY_BEST_PICKS.insert(0, pick_data)
-                if len(TODAY_BEST_PICKS) > 10:
-                    TODAY_BEST_PICKS.pop()
-                
-                DAILY_STATS["total"] += 1
-                if DAILY_STATS["total"] % 5 == 0:
-                    DAILY_STATS["lost"] += 1
-                else:
-                    DAILY_STATS["won"] += 1
-                
-                alert_text = (
-                    f"🎯 **{match['home']} vs {match['away']}**\n"
-                    f"🏆 {match['comp']} | ⏰ {time_str} Ελλάδος\n\n"
-                    f"🟢 {market_choice}: **{odds_choice}**\n"
-                    f"⚡ {stake_choice}"
-                )
-                
-                for chat_id in list(SUBSCRIBED_CHATS):
-                    try:
-                        await app.bot.send_message(chat_id=chat_id, text=alert_text, parse_mode="Markdown")
-                    except Exception as e:
-                        print(f"Error sending to {chat_id}: {e}")
-                
-                sent_matches.add(match['id'])
-                await asyncio.sleep(2)
-                
+                        market, odds, stake = realistic_match_analysis(m['homeTeam']['name'], m['awayTeam']['name'], comp)
+                        pick = {'home': m['homeTeam']['name'], 'away': m['awayTeam']['name'], 'comp': comp, 'time': dt.strftime("%H:%M"), 'market': market, 'odds': odds, 'stake': stake}
+                        TODAY_BEST_PICKS.insert(0, pick)
+                        if len(TODAY_BEST_PICKS) > 10: TODAY_BEST_PICKS.pop()
+                        
+                        alert = f"🎯 **{pick['home']} vs {pick['away']}**\n🏆 {comp} | ⏰ {pick['time']}\n\n🟢 {market}: **{odds}**\n⚡ {stake}"
+                        for cid in list(SUBSCRIBED_CHATS):
+                            try: await app.bot.send_message(chat_id=cid, text=alert, parse_mode="Markdown")
+                            except: pass
+                        sent.add(m['id'])
+                        await asyncio.sleep(1)
+                await asyncio.sleep(1)
         except Exception as e:
-            print(f"Error scanning matches: {e}")
-            
-        await asyncio.sleep(180)
+            print(e)
+        await asyncio.sleep(300)
 
 async def post_init(application):
-    asyncio.create_task(auto_scan_and_notify(application))
+    application.create_task(auto_scan_and_notify(application))
 
-def main():
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAEDgpg07QlrHH0QiZdCQgP2eoflpq8xWs")
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("best", best_command))
     app.add_handler(CommandHandler("combo", combo_command))
-    
-    print("Chris Bet is starting polling...")
     app.run_polling()
-
-if __name__ == '__main__':
-    main()
