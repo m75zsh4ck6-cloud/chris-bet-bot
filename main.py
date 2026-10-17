@@ -14,7 +14,6 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 API_URL = "https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d="
 
-# Global cache για ταχύτητα και αποφυγή περιττών κλήσεων
 CACHE_DATA = {"timestamp": None, "matches": []}
 CACHE_DURATION = timedelta(minutes=30)
 
@@ -39,11 +38,38 @@ def triple_check_match(event):
         
     return True
 
+def verify_match_result(event):
+    """
+    Επαληθεύει αυτόματα αν ο αγώνας έχει τελειώσει και αν το προτεινόμενο σημείο (π.χ. Over 1.5) βγήκε.
+    Επιστρέφει 'WON' (✅), 'LOST' (❌) ή 'PENDING' (⏳ αν δεν έχει τελειώσει ακόμα).
+    """
+    status = event.get("strStatus", "")
+    home_score = event.get("intHomeScore")
+    away_score = event.get("intAwayScore")
+    
+    # Αν ο αγώνας δεν έχει ολοκληρωθεί
+    if not status or status.lower() not in ["ft", "aet", "pen", "100%"]:
+        if home_score is None or away_score is None:
+            return "PENDING"
+            
+    try:
+        h_goals = int(home_score)
+        a_goals = int(away_score)
+    except:
+        return "PENDING"
+        
+    total_goals = h_goals + a_goals
+    
+    # Παράδειγμα ελέγχου για Over 1.5 (που βάζουμε ως standard pick)
+    if total_goals >= 2:
+        return "WON"
+    else:
+        return "LOST"
+
 def fetch_real_matches():
     global CACHE_DATA
     now = datetime.now()
     
-    # Χρήση Cache αν είναι πρόσφατη (επιτάχυνση bot)
     if CACHE_DATA["timestamp"] and (now - CACHE_DATA["timestamp"] < CACHE_DURATION):
         return CACHE_DATA["matches"]
 
@@ -75,6 +101,9 @@ def fetch_real_matches():
             home = ev.get("strHomeTeam")
             away = ev.get("strAwayTeam")
             
+            # Αυτόματος έλεγχος κατάστασης αγώνα
+            match_status = verify_match_result(ev)
+            
             verified_matches.append({
                 "datetime": match_datetime,
                 "league": f"⚽ {league_name}",
@@ -83,7 +112,7 @@ def fetch_real_matches():
                 "odds": "1.38",
                 "sort_time": sort_key,
                 "confidence": 98,
-                "status": "WON"
+                "status": match_status
             })
             
     # Fallback εάν δεν βρεθούν δυναμικά δεδομένα
@@ -107,13 +136,11 @@ def fetch_real_matches():
                 "odds": "1.32",
                 "sort_time": "2026-10-17 19:30",
                 "confidence": 99,
-                "status": "WON"
+                "status": "PENDING"
             }
         ]
         
     verified_matches.sort(key=lambda x: x["sort_time"])
-    
-    # Αποθήκευση στη μνήμη (Cache)
     CACHE_DATA["timestamp"] = now
     CACHE_DATA["matches"] = verified_matches
     
@@ -136,7 +163,7 @@ def format_picks_message(matches_list):
     
     return msg.strip()
 
-# --- HANDLERS ΜΕ ΔΙΑΔΡΑΣΤΙΚΑ ΚΟΥΜΠΙΑ ---
+# --- HANDLERS ---
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -145,7 +172,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     matches = fetch_real_matches()
     response_text = format_picks_message(matches)
     
-    # Προσθήκη διαδραστικών κουμπιών για κορυφαία εμπειρία χρήστη
     keyboard = [
         [InlineKeyboardButton("🔄 Ανανέωση Αγώνων", callback_data="refresh_matches")],
         [InlineKeyboardButton("📊 Απολογισμός (/stats)", callback_data="show_stats")]
@@ -164,12 +190,22 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "✨ Δεν υπήρχαν αγώνες για αξιολόγηση."
     else:
         won_count = sum(1 for m in matches if m.get("status") == "WON")
+        finished_count = sum(1 for m in matches if m.get("status") in ["WON", "LOST"])
+        
         text = f"📊 **ΑΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΑΣ**\n\n"
         for m in matches:
-            icon = "✅" if m.get("status") == "WON" else "❌"
+            st = m.get("status")
+            if st == "WON":
+                icon = "✅"
+            elif st == "LOST":
+                icon = "❌"
+            else:
+                icon = "⏳" # Σε εξέλιξη / Αναμονή
+                
             text += f"{icon} {m['match']} ({m['pick']}) - Απόδοση: {m['odds']}\n"
-        text += f"\n🎯 **Συνολικό Αποτέλεσμα:** {won_count}/{total} επιτυχημένοι αγώνες\n"
-        text += f"📈 **Ποσοστό Επιτυχίας:** {(won_count/total)*100:.0f}%"
+            
+        text += f"\n🎯 **Αποτέλεσμα:** {won_count}/{finished_count} κερδισμένα (Ολοκληρωμένοι αγώνες)\n"
+        text += f"📈 **Ποσοστό Επιτυχίας:** {(won_count/finished_count)*100:.0f}%" if finished_count > 0 else f"📈 **Ποσοστό Επιτυχίας:** Αναμονή λήξης αγώνων"
 
     keyboard = [[InlineKeyboardButton("🔙 Πίσω στους Αγώνες", callback_data="back_to_start")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -212,15 +248,13 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CallbackQueryHandler(button_handler))
-    
-    # Προσθήκη Global Error Handler για απόλυτη σταθερότητα
     application.add_error_handler(error_handler)
 
     job_queue = application.job_queue
     if job_queue:
         job_queue.run_repeating(check_high_confidence_matches, interval=3600, first=10)
 
-    print("Bot is running smoothly with advanced features...")
+    print("Bot is running with live result verification...")
     application.run_polling()
 
 if __name__ == "__main__":
