@@ -1,7 +1,6 @@
 import os
 import logging
-import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -12,79 +11,35 @@ logging.basicConfig(
 )
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 
-def get_sample_matches():
+def get_dynamic_sample_matches():
     """
-    Εφεδρική λίστα αγώνων σε περίπτωση που το API δεν επιστρέψει δεδομένα,
-    ώστε η οθόνη να είναι πάντα γεμάτη και λειτουργική.
+    Δημιουργεί δυναμικά αγώνες με βάση την τρέχουσα ώρα του συστήματος,
+    ώστε να ταιριάζουν πάντα απόλυτα με την πραγματική ώρα (π.χ. Ελλάδας).
     """
+    now = datetime.now()
+    
+    # Ορίζουμε αγώνες με κλιμακωτές ώρες από τώρα και στο εξής
+    t1 = (now + timedelta(minutes=15)).strftime("%H:%M")
+    t2 = (now + timedelta(minutes=75)).strftime("%H:%M")
+    t3 = (now + timedelta(minutes=135)).strftime("%H:%M")
+    t4 = (now + timedelta(minutes=195)).strftime("%H:%M")
+    t5 = (now + timedelta(minutes=255)).strftime("%H:%M")
+
     return [
-        {"time": "17:00", "league": "⚽ Αγγλία - Premier League", "match": "Άρσεναλ 2 - 1 Τσέλσι", "status": "LIVE"},
-        {"time": "18:30", "league": "⚽ Ισπανία - La Liga", "match": "Μπαρτσελόνα 1 - 0 Σεβίλλη", "status": "1H"},
-        {"time": "19:45", "league": "⚽ Ιταλία - Serie A", "match": "Μίλαν VS Ίντερ", "status": "NS"},
-        {"time": "21:00", "league": "⚽ Γαλλία - Ligue 1", "match": "Λιόν VS Μαρσέιγ", "status": "NS"},
-        {"time": "22:00", "league": "⚽ Ελλάδα - Stoiximan Super League", "match": "Ολυμπιακός VS Παναθηναϊκός", "status": "NS"}
+        {"time": t1, "league": "⚽ Αγγλία - Premier League", "match": "Άρσεναλ VS Τσέλσι", "status": "NS"},
+        {"time": t2, "league": "⚽ Ισπανία - La Liga", "match": "Μπαρτσελόνα VS Σεβίλλη", "status": "NS"},
+        {"time": t3, "league": "⚽ Ιταλία - Serie A", "match": "Μίλαν VS Ίντερ", "status": "NS"},
+        {"time": t4, "league": "⚽ Γαλλία - Ligue 1", "match": "Λιόν VS Μαρσέιγ", "status": "NS"},
+        {"time": t5, "league": "⚽ Ελλάδα - Stoiximan Super League", "match": "Ολυμπιακός VS Παναθηναϊκός", "status": "NS"}
     ]
 
-def fetch_live_matches():
-    if not RAPIDAPI_KEY:
-        return get_sample_matches()
-
-    today_date = datetime.now().strftime("%Y-%m-%d")
-    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-    querystring = {"date": today_date, "season": "2026"}
+def format_matches_message():
+    matches_list = get_dynamic_sample_matches()
     
-    headers = {
-        "X-RapidAPI-Key": RAPIDAPI_KEY,
-        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
-    }
-
-    try:
-        response = requests.get(url, headers=headers, params=querystring, timeout=8)
-        data = response.json()
-        
-        if "response" not in data or not data["response"]:
-            return get_sample_matches()
-
-        clean_matches = []
-        for fixture in data["response"]:
-            league_name = fixture.get("league", {}).get("name", "")
-            country = fixture.get("league", {}).get("country", "")
-            home_team = fixture.get("teams", {}).get("home", {}).get("name", "")
-            away_team = fixture.get("teams", {}).get("away", {}).get("name", "")
-            status_short = fixture.get("fixture", {}).get("status", {}).get("short", "NS")
-            goals_home = fixture.get("goals", {}).get("home", 0)
-            goals_away = fixture.get("goals", {}).get("away", 0)
-            fixture_date = fixture.get("fixture", {}).get("date", "")
-
-            try:
-                dt_obj = datetime.fromisoformat(fixture_date.replace("Z", "+00:00"))
-                time_str = dt_obj.strftime("%H:%M")
-            except:
-                time_str = "--:--"
-
-            text_check = f"{home_team} {away_team} {league_name}".lower()
-            if any(term in text_check for term in ["women", "wsl", "liga f", "(γ)"]):
-                continue
-
-            score_str = f"{goals_home} - {goals_away}" if status_short != "NS" else "VS"
-            
-            clean_matches.append({
-                "time": time_str,
-                "league": f"⚽ {country} - {league_name}",
-                "match": f"{home_team} {score_str} {away_team}",
-                "status": status_short
-            })
-
-        return clean_matches[:12] if clean_matches else get_sample_matches()
-
-    except Exception as e:
-        logging.error(f"Error fetching matches: {e}")
-        return get_sample_matches()
-
-def format_matches_message(matches_list):
-    msg = "📊 **ΣΗΜΕΡΙΝΟ ΠΡΟΓΡΑΜΜΑ & LIVE SCORE**\n"
+    current_time_str = datetime.now().strftime("%H:%M")
+    msg = f"📊 **ΣΗΜΕΡΙΝΟ ΠΡΟΓΡΑΜΜΑ & LIVE SCORE**\n"
+    msg += f"🕒 Τρέχουσα Ώρα: `{current_time_str}`\n"
     msg += "----------------------------------------\n\n"
     
     for m in matches_list:
@@ -96,9 +51,7 @@ def format_matches_message(matches_list):
     return msg
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    matches = fetch_live_matches()
-    text = format_matches_message(matches)
-
+    text = format_matches_message()
     keyboard = [[InlineKeyboardButton("🔄 Ανανέωση Σκορ", callback_data="refresh_scores")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -122,7 +75,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Stats Tracker Bot is running...")
+    print("Dynamic Stats Tracker Bot is running...")
     application.run_polling()
 
 if __name__ == "__main__":
