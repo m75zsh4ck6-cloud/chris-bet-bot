@@ -1,27 +1,26 @@
 import os
+import threading
 import asyncio
 from datetime import datetime, timezone, timedelta
 import requests
-from aiohttp import web
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Chris Bet Pro is active!")
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
 
 SUBSCRIBED_CHATS = set()
 TODAY_BEST_PICKS = []
 DAILY_STATS = {"date": "", "total": 0, "won": 0, "lost": 0}
-
-async def handle_ping(request):
-    return web.Response(text="Chris Bet Pro bot is running!")
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get('/', handle_ping)
-    app.router.add_get('/ping', handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -210,18 +209,17 @@ async def auto_scan_and_notify(app):
         await asyncio.sleep(180)
 
 async def post_init(application):
-    asyncio.create_task(start_web_server())
-    asyncio.create_task(auto_scan_and_notify(application))
+    application.create_task(auto_scan_and_notify(application))
 
-def main():
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    
     TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8968240612:AAEDgpg07QlrHH0QiZdCQgP2eoflpq8xWs")
+    
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("best", best_command))
     app.add_handler(CommandHandler("combo", combo_command))
     
-    print("Chris Bet is starting polling...")
+    print("Chris Bet is running...")
     app.run_polling()
-
-if __name__ == '__main__':
-    main()
