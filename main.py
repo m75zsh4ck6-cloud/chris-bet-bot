@@ -1,6 +1,7 @@
 import os
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -12,14 +13,16 @@ logging.basicConfig(
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
+def get_greece_time():
+    """Επιστρέφει την τρέχουσα ώρα Ελλάδας ανεξάρτητα από τον server."""
+    try:
+        return datetime.now(ZoneInfo("Europe/Athens"))
+    except:
+        return datetime.now()
+
 def get_dynamic_sample_matches():
-    """
-    Δημιουργεί δυναμικά αγώνες με βάση την τρέχουσα ώρα του συστήματος,
-    ώστε να ταιριάζουν πάντα απόλυτα με την πραγματική ώρα (π.χ. Ελλάδας).
-    """
-    now = datetime.now()
+    now = get_greece_time()
     
-    # Ορίζουμε αγώνες με κλιμακωτές ώρες από τώρα και στο εξής
     t1 = (now + timedelta(minutes=15)).strftime("%H:%M")
     t2 = (now + timedelta(minutes=75)).strftime("%H:%M")
     t3 = (now + timedelta(minutes=135)).strftime("%H:%M")
@@ -36,8 +39,8 @@ def get_dynamic_sample_matches():
 
 def format_matches_message():
     matches_list = get_dynamic_sample_matches()
+    current_time_str = get_greece_time().strftime("%H:%M")
     
-    current_time_str = datetime.now().strftime("%H:%M")
     msg = f"📊 **ΣΗΜΕΡΙΝΟ ΠΡΟΓΡΑΜΜΑ & LIVE SCORE**\n"
     msg += f"🕒 Τρέχουσα Ώρα: `{current_time_str}`\n"
     msg += "----------------------------------------\n\n"
@@ -75,7 +78,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Dynamic Stats Tracker Bot is running...")
+    print("Accurate Time Stats Bot is running...")
     application.run_polling()
 
 if __name__ == "__main__":
