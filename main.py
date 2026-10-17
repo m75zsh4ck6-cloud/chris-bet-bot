@@ -11,15 +11,15 @@ logging.basicConfig(
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# --- Ο ΑΛΓΟΡΙΘΜΟΣ ΜΕ Τﺎ ΦΙΛΤΡΑ ΚΑΙ ΤΑ ΣΗΜΕΙΑ ΣΟΥ (Over/Under, Διπλές Ευκαιρίες κλπ.) ---
+# --- Ο ΑΛΓΟΡΙΘΜΟΣ ΜΕ ΤΑ ΦΙΛΤΡΑ ΚΑΙ ΤΑ ΣΗΜΕΙΑ ΣΟΥ (Σ στα ελληνικά) ---
 def get_matches():
     return [
         {
             "match": "FC Bayern München vs RB Leipzig",
             "pick": "Διπλή Ευκαιρία: X2 & Over 1.5",
             "odds": "1.82",
-            "trust": "Medium Trust",
-            "stars": "⚡ 🟢",
+            "trust": "Μεσαία Εμπιστοσύνη",
+            "stars": "⚡",
             "stake": "1/10",
             "confidence": 85
         },
@@ -27,8 +27,8 @@ def get_matches():
             "match": "FC Schalke 04 vs 1. FSV Mainz 05",
             "pick": "Διπλή Ευκαιρία: 1X",
             "odds": "1.42",
-            "trust": "High Trust",
-            "stars": "⚡ 🟢🟢🟢",
+            "trust": "Υψηλή Εμπιστοσύνη",
+            "stars": "⚡Εξαιρετική",
             "stake": "3/10",
             "confidence": 95  # >= 95% Σιγουριά
         },
@@ -36,33 +36,33 @@ def get_matches():
             "match": "SV 07 Elversberg vs FC Augsburg",
             "pick": "Over 1.5 Goals",
             "odds": "1.35",
-            "trust": "High Trust",
-            "stars": "⚡ 🟢🟢🟢",
+            "trust": "Υψηλή Εμπιστοσύνη",
+            "stars": "⚡Εξαιρετική",
             "stake": "3/10",
             "confidence": 98  # >= 95% Σιγουριά
         }
     ]
 
-def format_picks_message(matches_list, header="🔥 TOP VALUE PICKS:"):
+def format_picks_message(matches_list, header="🔥 ΚΟΡΥΦΑΙΕΣ ΕΠΙΛΟΓΕΣ:"):
     if not matches_list:
         return "Δεν βρέθηκαν διαθέσιμοι αγώνες αυτή τη στιγμή."
     
     msg = f"{header}\n\n"
     for m in matches_list:
         msg += f"🎯 {m['match']}\n"
-        msg += f"🟢 {m['pick']}: {m['odds']}\n"
-        msg += f"{m['stars']} {m['trust']} | Stake: {m['stake']}\n\n"
+        msg += f"👉 {m['pick']} | Απόδοση: {m['odds']}\n"
+        msg += f"{m['stars']} {m['trust']} | Ποντάρισμα: {m['stake']}\n\n"
     return msg.strip()
 
 # --- HANDLERS ---
 
-# 1. Με το /start φέρνει ΑΜΕΣΩΣ τους αγώνες
+# 1. Με το /start φέρνει ΑΜΕΣΩΣ τους αγώνες στα ελληνικά
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για τις αυτόματες ειδοποιήσεις
+    context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για αυτόματες ειδοποιήσεις
     
     matches = get_matches()
-    response_text = format_picks_message(matches, header="🔥 TOP VALUE PICKS:")
+    response_text = format_picks_message(matches, header="🔥 ΚΟΡΥΦΑΙΕΣ ΕΠΙΛΟΓΕΣ:")
     await update.message.reply_text(response_text)
 
 # 2. Αυτόματος έλεγχος για αγώνες με >= 95% σιγουριά
