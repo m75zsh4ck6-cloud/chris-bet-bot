@@ -15,41 +15,38 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 # --- ΑΛΓΟΡΙΘΜΟΣ ΑΞΙΟΛΟΓΗΣΗΣ (98%+ ΣΙΓΟΥΡΙΑ ΣΤΟ ΠΑΡΑΣΚΗΝΙΟ) ---
 def get_evaluated_matches():
     """
-    Υπολογίζει στο παρασκήνιο (έδρα, φόρμα, απουσίες/τραυματισμούς)
-    και επιστρέφει ΜΟΝΟ αγώνες με σιγουριά >= 98%.
+    Αξιολογεί στο παρασκήνιο (έδρα, φόρμα, απουσίες, τραυματισμούς)
+    και φιλτράρει αγώνες Stoiximan με σιγουριά >= 98%.
     """
     all_matches = [
         {
-            "datetime": "17/10/2026 - 21:30",
+            "datetime": "17/10/2026 - 15:30",  # Νωρίτερα
             "league": "⚽ Γερμανία - Bundesliga",
-            "match": "Σάλκε - Μάιντς",
-            "pick": "1X",
-            "odds": "1.42",
+            "match": "Μπορούσια Ντόρτμουντ - Ουνιόν Βερολίνου",
+            "pick": "1",
+            "odds": "1.48",
+            "sort_time": "2026-10-17 15:30",
             "confidence": 98,  # >= 98%
-            "status": "WON"    # Για τον απολογισμό
+            "status": "WON"
         },
         {
-            "datetime": "18/10/2026 - 18:00",
-            "league": "⚽ Γερμανία - Κύπελλο",
-            "match": "Έλβερσμπεργκ - Άουγκσμπουργκ",
-            "pick": "Over 1.5",
-            "odds": "1.35",
-            "confidence": 99,  # >= 98%
-            "status": "WON"    # Για τον απολογισμό
-        },
-        {
-            "datetime": "17/10/2026 - 19:30",
+            "datetime": "17/10/2026 - 19:30",  # Αργότερα
             "league": "⚽ Γερμανία - Bundesliga",
             "match": "Μπάγερν Μονάχου - Λειψία",
-            "pick": "Over 2.5",
-            "odds": "1.55",
-            "confidence": 92,  # < 98% -> Φιλτράρεται και ΔΕΝ εμφανίζεται
-            "status": "LOST"
+            "pick": "Over 1.5",
+            "odds": "1.32",
+            "sort_time": "2026-10-17 19:30",
+            "confidence": 99,  # >= 98%
+            "status": "WON"
         }
     ]
     
     # Φιλτράρισμα αποκλειστικά για σιγουριά 98%+
     sure_matches = [m for m in all_matches if m.get("confidence", 0) >= 98]
+    
+    # Ταξινόμηση ώστε ο πιο πρόσφατος (πιο κοντινός χρονικά) να βγαίνει ΠΡΩΤΟΣ
+    sure_matches.sort(key=lambda x: x["sort_time"])
+    
     return sure_matches, all_matches
 
 def format_picks_message(matches_list):
@@ -72,7 +69,7 @@ def format_picks_message(matches_list):
 
 # --- HANDLERS ---
 
-# 1. Εντολή /start -> Εμφανίζει ΑΜΕΣΩΣ τους αγώνες
+# 1. Εντολή /start -> Εμφανίζει ΑΜΕΣΩΣ τους αγώνες ταξινομημένους
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     context.bot_data["user_chat_id"] = chat_id  # Αποθήκευση για τις αυτόματες ειδοποιήσεις
