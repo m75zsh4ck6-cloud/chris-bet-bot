@@ -12,7 +12,8 @@ logging.basicConfig(
 )
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "your_channel_name") # Ορίζεται από το Railway
+# Εδώ διαβάζει το σωστό κανάλι από το Railway, αλλιώς βάζεις εσύ απευθείας το username σου
+CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "StavrosLifestyleNews") 
 
 def get_greece_time():
     """Επιστρέφει την τρέχουσα ώρα Ελλάδας."""
@@ -21,34 +22,37 @@ def get_greece_time():
     except:
         return datetime.now()
 
-def format_lifestyle_message():
+def format_lifestyle_news():
     current_time_str = get_greece_time().strftime("%H:%M")
+    current_date_str = get_greece_time().strftime("%d/%m/%Y")
     
-    msg = "✨ **LIFESTYLE & GOSSIP NEWS HUB** 🌟\n"
-    msg += f"🕒 Τελευταία Ενημέρωση: `{current_time_str}` (Ώρα Ελλάδος)\n"
+    msg = f"✨ **LIFESTYLE & GOSSIP DAILY NEWS** 🌟\n"
+    msg += f"📅 Ημερομηνία: `{current_date_str}` | 🕒 `{current_time_str}`\n"
     msg += "----------------------------------------\n\n"
     
-    msg += "🔥 **HOT TOPICS & ΤΑΣΕΙΣ ΣΗΜΕΡΑ**\n"
-    msg += "• Τελευταία νέα από τον κόσμο της showbiz και της ψυχαγωγίας.\n"
-    msg += "• Αποκλειστικά ρεπορτάζ, lifestyle trends και κοσμικά γεγονότα.\n"
-    msg += "• Τάσεις της μόδας, τηλεόραση και social media buzz.\n\n"
-
-    msg += "📌 **ΚΑΤΗΓΟΡΙΕΣ ΕΝΗΜΕΡΩΣΗΣ**\n"
-    msg += "• 🌟 Showbiz & Celebrities\n"
-    msg += "• 🎬 Cinema & TV Shows\n"
-    msg += "• ✈️ Travel & Trends\n"
+    msg += "🔥 **ΣΗΜΕΡΙΝΑ ΘΕΜΑΤΑ & ΡΕΠΟΡΤΑΖ**\n\n"
+    
+    msg += "🎬 **1. Νέα μεγάλη παραγωγή ξεκινάει στην Αθήνα!**\n"
+    msg += "• *Τι έγινε:* Γνωστός σκηνοθέτης ετοιμάζει νέα διεθνή σειρά και οι οντισιόν ξεκινούν την ερχόμενη εβδομάδα.\n\n"
+    
+    msg += "🌟 **2. Η εμφάνιση που συζητήθηκε χθες βράδυ**\n"
+    msg += "• *Λεπτομέρειες:* Όλα τα βλέμματα έπεσαν στο κόκκινο χαλί και στις εντυπωσιακές δημιουργίες γνωστών σχεδιαστών.\n\n"
+    
+    msg += "✈️ **3. Top Travel Trend για το τριήμερο**\n"
+    msg += "• *Προορισμοί:* Ποιοι είναι οι κορυφαίοι χειμερινοί προορισμοί που επέλεξαν φέτος οι celebrities.\n"
+    
     msg += "----------------------------------------\n"
-
-    msg += "\n💬 *Μείνετε συντονισμένοι για τα επόμενα άρθρα.*"
+    msg += "👇 *Πατήστε παρακάτω για συνεχή ροή ειδήσεων στο κανάλι μας.*"
+    
     return msg
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = format_lifestyle_message()
+    text = format_lifestyle_news()
     
     channel_url = f"https://t.me/{CHANNEL_USERNAME}"
     keyboard = [
-        [InlineKeyboardButton("🔄 Ανανέωση Ροής", callback_data="refresh_lifestyle")],
-        [InlineKeyboardButton("📢 Μετάβαση στο Κανάλι", url=channel_url)]
+        [InlineKeyboardButton("🔄 Ανανέωση Ειδήσεων", callback_data="refresh_news")],
+        [InlineKeyboardButton("📢 Μπες στο Κανάλι Ειδήσεων", url=channel_url)]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -59,8 +63,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 Ενημέρωση ροής lifestyle...")
-    if query.data == "refresh_lifestyle":
+    await query.answer("🔄 Ενημέρωση ροής...")
+    if query.data == "refresh_news":
         await start_command(update, context)
 
 def main():
@@ -72,7 +76,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Lifestyle News Bot is running successfully...")
+    print("Lifestyle News Bot with real text is running...")
     application.run_polling()
 
 if __name__ == "__main__":
