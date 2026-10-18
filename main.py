@@ -1,7 +1,7 @@
 import os
 import logging
-import feedparser
 import requests
+import xml.etree.ElementTree as ET
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -17,7 +17,7 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "telegram")
 
-# Πηγές RSS
+# Πηγές RSS Feeds (Newsit)
 RSS_FEEDS = {
     "LIFESTYLE": "https://www.newsit.gr/category/lifestyle/feed/",
     "NEWS": "https://www.newsit.gr/category/ellada/feed/",
@@ -33,26 +33,31 @@ def get_greece_time():
     except:
         return datetime.now()
 
-def clean_html(raw_html):
-    """Αφαιρεί HTML tags από τις περιλήψεις."""
+def clean_html(text):
+    """Αφαιρεί HTML tags από το κείμενο."""
+    if not text:
+        return ""
     cleanr = re.compile('<.*?>')
-    cleantext = re.sub(cleanr, '', raw_html)
-    return cleantext.strip()
+    return re.sub(cleanr, '', text).strip()
 
-def fetch_real_news(category_key="LIFESTYLE", limit=4):
-    """Τραβάει τις πραγματικές ειδήσεις με προσθήκη User-Agent."""
-    feed_url = RSS_FEEDS.get(category_key, RSS_FEEDS["LIFESTYLE"])
+def fetch_rss_articles(category_key="LIFESTYLE", limit=4):
+    """Τραβάει ζωντανά τις ειδήσεις με απλό HTTP Request & XML Parsing."""
+    url = RSS_FEEDS.get(category_key, RSS_FEEDS["LIFESTYLE"])
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
     try:
-        response = requests.get(feed_url, headers=headers, timeout=8)
-        feed = feedparser.parse(response.content)
+        response = requests.get(url, headers=headers, timeout=6)
+        if response.status_code != 200:
+            return []
+            
+        root = ET.fromstring(response.content)
         articles = []
         
-        for entry in feed.entries[:limit]:
-            title = entry.get("title", "Επικαιρότητα")
-            link = entry.get("link", "https://www.newsit.gr")
-            summary = clean_html(entry.get("summary", entry.get("description", "")))
+        for item in root.findall('.//item')[:limit]:
+            title = item.find('title').text if item.find('title') is not None else "Επικαιρότητα"
+            link = item.find('link').text if item.find('link') is not None else "https://www.newsit.gr"
+            desc_elem = item.find('description')
+            summary = clean_html(desc_elem.text) if desc_elem is not None else ""
             
             if len(summary) > 110:
                 summary = summary[:107] + "..."
@@ -62,12 +67,13 @@ def fetch_real_news(category_key="LIFESTYLE", limit=4):
                 "link": link,
                 "summary": summary
             })
+            
         return articles
     except Exception as e:
-        logging.error(f"Error fetching RSS: {e}")
+        logging.error(f"Error reading RSS: {e}")
         return []
 
-def format_news_message(category_name, articles):
+def format_news_caption(category_name, articles):
     current_time_str = get_greece_time().strftime("%H:%M")
     current_date_str = get_greece_time().strftime("%d/%m/%Y")
     
@@ -80,13 +86,12 @@ def format_news_message(category_name, articles):
             msg += f"🔴 **{idx}. {art['title']}**\n"
             if art['summary']:
                 msg += f"• _{art['summary']}_\n"
-            msg += f"🔗 [Διαβάστε το άρθρο στο site]({art['link']})\n\n"
+            msg += f"🔗 [Διαβάστε το άρθρο]({art['link']})\n\n"
     else:
-        # Εφεδρικοί ενεργοί σύνδεσμοι αν αποτύχει το RSS
-        msg += "📌 **ΤΕΛΕΥΤΑΙΑ ΝΕΑ ΚΑΙ ΕΠΙΚΑΙΡΟΤΗΤΑ**\n\n"
-        msg += "🔴 **1. Εκτάκτως οι εξελίξεις της ημέρας**\n"
-        msg += "🔗 [Διαβάστε όλες τις ειδήσεις εδώ](https://www.newsit.gr/)\n\n"
-        msg += "🔴 **2. Lifestyle & Showbiz Updates**\n"
+        msg += "📌 **ΤΕΛΕΥΤΑΙΕΣ ΕΞΕΛΙΞΕΙΣ & ΕΙΔΗΣΕΙΣ**\n\n"
+        msg += "🔴 **1. Συνεχής ενημέρωση για την επικαιρότητα**\n"
+        msg += "🔗 [Διαβάστε όλες τις ειδήσεις στο Newsit](https://www.newsit.gr/)\n\n"
+        msg += "🔴 **2. Lifestyle & Showbiz**\n"
         msg += "🔗 [Δείτε τα τελευταία ρεπορτάζ](https://www.newsit.gr/category/lifestyle/)\n\n"
 
     msg += "----------------------------------------\n"
@@ -94,8 +99,8 @@ def format_news_message(category_name, articles):
     return msg
 
 async def send_news_feed(update: Update, context: ContextTypes.DEFAULT_TYPE, category_key="LIFESTYLE", category_name="LIFESTYLE & SHOWBIZ"):
-    articles = fetch_real_news(category_key=category_key, limit=4)
-    caption = format_news_message(category_name, articles)
+    articles = fetch_rss_articles(category_key=category_key, limit=4)
+    caption = format_news_caption(category_name, articles)
     
     channel_url = f"https://t.me/{CHANNEL_USERNAME}"
 
@@ -165,7 +170,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("News Bot with working links is running...")
+    print("Stable News Bot is running...")
     application.run_polling()
 
 if __name__ == "__main__":
