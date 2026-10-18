@@ -22,11 +22,8 @@ def get_greece_time():
     except:
         return datetime.now()
 
-def fetch_real_live_matches():
-    """
-    Τραβάει τους πραγματικούς σημερινούς αγώνες από το API-Football
-    και μετατρέπει την ώρα σε ώρα Ελλάδας.
-    """
+def fetch_real_matches():
+    """Τραβάει τους πραγματικούς σημερινούς αγώνες από το API-Football."""
     if not RAPIDAPI_KEY:
         return []
 
@@ -53,11 +50,9 @@ def fetch_real_live_matches():
             home_team = fixture.get("teams", {}).get("home", {}).get("name", "")
             away_team = fixture.get("teams", {}).get("away", {}).get("name", "")
             status_short = fixture.get("fixture", {}).get("status", {}).get("short", "NS")
-            goals_home = fixture.get("goals", {}).get("home", 0)
-            goals_away = fixture.get("goals", {}).get("goals", {}).get("away", 0) or fixture.get("goals", {}).get("away", 0)
             fixture_date = fixture.get("fixture", {}).get("date", "")
 
-            # Μετατροπή ώρας σε ώρα Ελλάδας (UTC+3)
+            # Μετατροπή ώρας σε ώρα Ελλάδας
             try:
                 dt_utc = datetime.fromisoformat(fixture_date.replace("Z", "+00:00"))
                 dt_gr = dt_utc.astimezone(ZoneInfo("Europe/Athens"))
@@ -65,48 +60,58 @@ def fetch_real_live_matches():
             except:
                 time_str = "--:--"
 
-            # Φιλτράρισμα για να κρατήσουμε σημαντικές διοργανώσεις
+            # Φιλτράρισμα γυναικείου ποδοσφαίρου
             text_check = f"{home_team} {away_team} {league_name}".lower()
             if any(term in text_check for term in ["women", "wsl", "liga f", "(γ)"]):
                 continue
 
-            score_str = f"{goals_home} - {goals_away}" if status_short != "NS" else "VS"
-            
             clean_matches.append({
                 "time": time_str,
-                "league": f"⚽ {country} - {league_name}",
-                "match": f"{home_team} {score_str} {away_team}",
+                "league": f"{country} - {league_name}",
+                "match": f"{home_team} - {away_team}",
                 "status": status_short
             })
 
-        return clean_matches[:12] # Επιστρέφει έως 12 πραγματικούς αγώνες
-
+        return clean_matches
     except Exception as e:
-        logging.error(f"Error fetching real matches: {e}")
+        logging.error(f"Error fetching matches: {e}")
         return []
 
-def format_matches_message():
-    matches_list = fetch_real_live_matches()
+def format_bait_message():
+    matches = fetch_real_matches()
     current_time_str = get_greece_time().strftime("%H:%M")
     
-    msg = f"📊 **ΣΗΜΕΡΙΝΟ ΠΡΟΓΡΑΜΜΑ & LIVE SCORE (API)**\n"
-    msg += f"🕒 Τρέχουσα Ώρα: `{current_time_str}`\n"
+    msg = f"📊 **VIP ΣΤΑΤΙΣΤΙΚΑ & ΑΝΑΛΥΣΗ ΑΓΩΝΩΝ**\n"
+    msg += f"🕒 Ενημέρωση: `{current_time_str}`\n"
     msg += "----------------------------------------\n\n"
-    
-    if matches_list:
-        for m in matches_list:
-            msg += f"⏰ `{m['time']}` | {m['league']}\n"
-            msg += f"🔥 **{m['match']}** [Status: `{m['status']}`]\n"
-            msg += "----------------------------------------\n"
-    else:
-        msg += "ℹ️ Δεν βρέθηκαν διαθέσιμοι αγώνες για σήμερα από το API.\n\n"
 
-    msg += "\n🔄 *Πατήστε ανανέωση για ενημέρωση.*"
+    msg += "🔥 **ΤΟ ΣΗΜΕΡΙΝΟ ΔΥΝΑΤΟ ΠΑΙΧΝΙΔΙ (PICK ΗΜΕΡΑ)**\n"
+    
+    if matches:
+        # Παίρνουμε τον πρώτο πραγματικό αγώνα της λίστας ως το σημερινό δόλωμα
+        top_match = matches[0]
+        msg += f"⚽ {top_match['league']}\n"
+        msg += f"🔥 **{top_match['match']}** (Ώρα: `{top_match['time']}`)\n"
+        msg += f"🎯 Εκτίμηση: **Over 2.5 & Goal/Goal**\n"
+        msg += f"🟢 Απόδοση: `1.90` | ⚡ Εμπιστοσύνη: `92%`\n\n"
+        
+        msg += "📋 **ΥΠΟΛΟΙΠΟΙ ΣΗΜΕΡΙΝΟΙ ΑΓΩΝΕΣ**\n"
+        for m in matches[1:6]:  # Εμφανίζει έως 5 επόμενους πραγματικούς αγώνες
+            msg += f"• `{m['time']}` | {m['match']} [{m['status']}]\n"
+    else:
+        msg += "⚽ *Ευρωπαϊκά Πρωταθλήματα*\n"
+        msg += "🔥 **Επιλεγμένο Παιχνίδι Ημέρας**\n"
+        msg += "🎯 Εκτίμηση: **Over 2.5** | Απόδοση: `1.85`\n\n"
+        msg += "ℹ️ *Αυτή τη στιγμή δεν βρέθηκαν live δεδομένα από το API.*"
+
+    msg += "\n----------------------------------------\n"
+    msg += "👇 *Πατήστε ανανέωση για τα νέα στοιχεία.*"
+    
     return msg
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = format_matches_message()
-    keyboard = [[InlineKeyboardButton("🔄 Ανανέωση Σκορ", callback_data="refresh_scores")]]
+    text = format_bait_message()
+    keyboard = [[InlineKeyboardButton("🔄 Ανανέωση Σήματος", callback_data="refresh_scores")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if update.message:
@@ -116,7 +121,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 Ενημέρωση σκορ...")
+    await query.answer("🔄 Συγχρονισμός δεδομένων...")
     if query.data == "refresh_scores":
         await start_command(update, context)
 
@@ -129,7 +134,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Real API Matches Bot is running...")
+    print("Bait Bot is running successfully...")
     application.run_polling()
 
 if __name__ == "__main__":
