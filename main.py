@@ -22,8 +22,8 @@ def get_greece_time():
     except:
         return datetime.now()
 
-def fetch_real_matches():
-    """Τραβάει τους πραγματικούς σημερινούς αγώνες από το API-Football."""
+def fetch_stats_matches():
+    """Τραβάει τους πραγματικούς σημερινούς αγώνες για στατιστική ανάλυση."""
     if not RAPIDAPI_KEY:
         return []
 
@@ -52,7 +52,6 @@ def fetch_real_matches():
             status_short = fixture.get("fixture", {}).get("status", {}).get("short", "NS")
             fixture_date = fixture.get("fixture", {}).get("date", "")
 
-            # Μετατροπή ώρας σε ώρα Ελλάδας
             try:
                 dt_utc = datetime.fromisoformat(fixture_date.replace("Z", "+00:00"))
                 dt_gr = dt_utc.astimezone(ZoneInfo("Europe/Athens"))
@@ -60,7 +59,6 @@ def fetch_real_matches():
             except:
                 time_str = "--:--"
 
-            # Φιλτράρισμα γυναικείου ποδοσφαίρου
             text_check = f"{home_team} {away_team} {league_name}".lower()
             if any(term in text_check for term in ["women", "wsl", "liga f", "(γ)"]):
                 continue
@@ -68,47 +66,49 @@ def fetch_real_matches():
             clean_matches.append({
                 "time": time_str,
                 "league": f"{country} - {league_name}",
-                "match": f"{home_team} - {away_team}",
+                "match": f"{home_team} vs {away_team}",
                 "status": status_short
             })
 
         return clean_matches
     except Exception as e:
-        logging.error(f"Error fetching matches: {e}")
+        logging.error(f"Error fetching stats matches: {e}")
         return []
 
-def format_bait_message():
-    matches = fetch_real_matches()
+def format_hub_message():
+    matches = fetch_stats_matches()
     current_time_str = get_greece_time().strftime("%H:%M")
     
-    msg = f"📊 **VIP ΣΤΑΤΙΣΤΙΚΑ & ΑΝΑΛΥΣΗ ΑΓΩΝΩΝ**\n"
-    msg += f"🕒 Ενημέρωση: `{current_time_str}`\n"
+    msg = "📊 **DAILY STATS & NEWS HUB** ⚽\n"
+    msg += f"🕒 Τελευταία Ενημέρωση: `{current_time_str}` (Ώρα Ελλάδος)\n"
     msg += "----------------------------------------\n\n"
-
-    if matches:
-        # Παίρνουμε τον πρώτο πραγματικό αγώνα της σημερινής λίστας
-        top_match = matches[0]
-        msg += f"🔥 **ΤΟ ΣΗΜΕΡΙΝΟ ΔΥΝΑΤΟ ΠΑΙΧΝΙΔΙ (VIP PICK)**\n"
-        msg += f"⚽ {top_match['league']}\n"
-        msg += f"🔥 **{top_match['match']}** (Ώρα: `{top_match['time']}`)\n"
-        msg += f"🎯 Εκτίμηση: **Over 2.5 & Goal/Goal**\n"
-        msg += f"🟢 Απόδοση: `1.90` | ⚡ Εμπιστοσύνη: `92%`\n\n"
-        
-        msg += "📋 **ΥΠΟΛΟΙΠΟΙ ΣΗΜΕΡΙΝΟΙ ΑΓΩΝΕΣ**\n"
-        for m in matches[1:7]:
-            msg += f"• `{m['time']}` | {m['match']} [{m['status']}]\n"
-    else:
-        msg += "ℹ️ **Αυτή τη στιγμή δεν υπάρχουν ενεργοί αγώνες στο API για σήμερα.**\n"
-        msg += "Δοκιμάστε ξανά αργότερα ή πατήστε ανανέωση όταν υπάρξει αγωνιστική δράση.\n"
-
-    msg += "\n----------------------------------------\n"
-    msg += "👇 *Πατήστε ανανέωση για τα νέα στοιχεία.*"
     
+    msg += "📌 **ΚΑΘΗΜΕΡΙΝΗ ΑΝΑΛΥΣΗ & ΣΤΑΤΙΣΤΙΚΑ**\n"
+    msg += "• Εδώ θα βρίσκετε καθημερινά ενημερωτικά δελτία φόρμες ομάδων και ειδήσεις.\n"
+    msg += "• *Στόχος μας η καθαρή ενημέρωση δεδομένων.*\n\n"
+
+    msg += "🔥 **ΣΗΜΕΡΙΝΟ ΠΡΟΓΡΑΜΜΑ & LIVE SCORES**\n"
+    
+    if matches:
+        for m in matches[:8]:  # Εμφανίζει έως 8 αγώνες
+            msg += f"⏰ `{m['time']}` | {m['league']}\n"
+            msg += f"⚽ **{m['match']}** [Status: `{m['status']}`]\n"
+            msg += "----------------------------------------\n"
+    else:
+        msg += "ℹ️ Δεν βρέθηκαν ενεργοί αγώνες στο API για αυτή τη χρονική στιγμή.\n"
+        msg += "----------------------------------------\n"
+
+    msg += "\n⚠️ *21+ | Παίξτε Υπεύθυνα. Υπηρεσία στατιστικής ανάλυσης.*"
     return msg
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = format_bait_message()
-    keyboard = [[InlineKeyboardButton("🔄 Ανανέωση Σήματος", callback_data="refresh_scores")]]
+    text = format_hub_message()
+    
+    # Δημιουργία καθαρών, νόμιμων επιλογών (π.χ. ανανέωση και ενημερωτικό site/link)
+    keyboard = [
+        [InlineKeyboardButton("🔄 Ανανέωση Δεδομένων", callback_data="refresh_hub")],
+        [InlineKeyboardButton("📢 Επίσημο Κανάλι Ειδήσεων", url="https://t.me/your_channel_link")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if update.message:
@@ -118,8 +118,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 Συγχρονισμός δεδομένων...")
-    if query.data == "refresh_scores":
+    await query.answer("🔄 Ενημέρωση στατιστικών...")
+    if query.data == "refresh_hub":
         await start_command(update, context)
 
 def main():
@@ -131,7 +131,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Accurate Real Matches Bot is running...")
+    print("Legal Stats Hub Bot is running successfully...")
     application.run_polling()
 
 if __name__ == "__main__":
